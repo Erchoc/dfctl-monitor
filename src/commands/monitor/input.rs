@@ -98,11 +98,23 @@ pub fn handle_key(key: KeyEvent, st: &mut AppState, tier: LayoutTier) -> Action 
 
     match st.view {
         View::Overview => match key.code {
-            // Phone tier: arrows / hjkl all page through panels (no 2D grid)
-            KeyCode::Up | KeyCode::Char('k') if matches!(tier, LayoutTier::Phone) => {
+            // Phone tier: *all four arrows + hjkl* page through panels. The dot
+            // indicator is horizontal, so users naturally expect ←→ to flip pages;
+            // ↑↓ also works (vim-style + intuitive for vertical lists).
+            KeyCode::Up
+            | KeyCode::Left
+            | KeyCode::Char('k')
+            | KeyCode::Char('h')
+                if matches!(tier, LayoutTier::Phone) =>
+            {
                 st.cycle_focus(-1)
             }
-            KeyCode::Down | KeyCode::Char('j') if matches!(tier, LayoutTier::Phone) => {
+            KeyCode::Down
+            | KeyCode::Right
+            | KeyCode::Char('j')
+            | KeyCode::Char('l')
+                if matches!(tier, LayoutTier::Phone) =>
+            {
                 st.cycle_focus(1)
             }
             // Desktop tiers: 2D grid movement

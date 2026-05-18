@@ -25,6 +25,9 @@ pub struct AreaChart<'a> {
     /// for evenly-spaced time labels.
     pub time_range: Option<(chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)>,
     pub x_label_count: u8,
+    /// Compact mode trims Y-axis label width and reduces label count. Use on phone
+    /// tiers where horizontal space is at a premium.
+    pub compact: bool,
 }
 
 impl<'a> AreaChart<'a> {
@@ -39,6 +42,7 @@ impl<'a> AreaChart<'a> {
             cursor_at_end: false,
             time_range: None,
             x_label_count: 7,
+            compact: false,
         }
     }
 
@@ -49,6 +53,11 @@ impl<'a> AreaChart<'a> {
 
     pub fn cursor(mut self, cursor: bool) -> Self {
         self.cursor_at_end = cursor;
+        self
+    }
+
+    pub fn compact(mut self, compact: bool) -> Self {
+        self.compact = compact;
         self
     }
 
@@ -87,11 +96,21 @@ impl<'a> Widget for AreaChart<'a> {
             .map(|i| {
                 let frac = i as f32 / (self.y_axis_labels.max(2) - 1) as f32;
                 let value = preview_max - (preview_max - preview_min) * frac as f64;
-                format_y_label(value, self.unit).chars().count()
+                if self.compact {
+                    format_y_label_compact(value, self.unit).chars().count()
+                } else {
+                    format_y_label(value, self.unit).chars().count()
+                }
             })
             .max()
             .unwrap_or(4);
-        let label_w = (widest_label as u16 + 1).clamp(4, 8);
+        // Compact mode caps label width at 5 (e.g. "100ms", "98%"). Default keeps
+        // [4, 8] for desktop's full-precision labels ("241ms", "98.3%").
+        let label_w = if self.compact {
+            (widest_label as u16 + 1).clamp(3, 5)
+        } else {
+            (widest_label as u16 + 1).clamp(4, 8)
+        };
 
         // ── Y axis layout ──
         let chart_x = area.x + label_w;
@@ -144,7 +163,11 @@ impl<'a> Widget for AreaChart<'a> {
             let frac = i as f32 / (n_labels - 1) as f32;
             let value = y_max - (y_max - y_min) * frac as f64;
             let row = chart_y + ((chart_h - 1) as f32 * frac) as u16;
-            let label = format_y_label(value, self.unit);
+            let label = if self.compact {
+                format_y_label_compact(value, self.unit)
+            } else {
+                format_y_label(value, self.unit)
+            };
             let span = Span::styled(
                 format!("{:>width$}", label, width = (label_w - 1) as usize),
                 Style::default().fg(TEXT_SECONDARY.to_color()),
@@ -333,6 +356,34 @@ pub fn format_y_label(value: f64, unit: &str) -> String {
         "rpm" => format_traffic(value),
         "/s" | "qps" => format_traffic(value * 60.0),
         _ => format_decimal(value),
+    }
+}
+
+/// Compact Y axis label for phone tier — strips units (kept in the panel title)
+/// to keep label_w ≤ 4 even at "100", "1.5G", or "1.2K" scales.
+pub fn format_y_label_compact(value: f64, unit: &str) -> String {
+    match unit {
+        "%" => format!("{:.0}", value),
+        "ms" => format!("{:.0}", value),
+        "GB" => format!("{:.1}", value),
+        "bytes" => format_bytes(value),
+        "rpm" => {
+            let qps = value / 60.0;
+            if qps < 1.0 { format!("{:.0}", value) }
+            else if qps < 1000.0 { format!("{:.0}", qps) }
+            else { format!("{:.1}k", qps / 1000.0) }
+        }
+        _ => {
+            if value.abs() >= 1000.0 {
+                format!("{:.1}k", value / 1000.0)
+            } else if value.abs() >= 100.0 {
+                format!("{:.0}", value)
+            } else if value.abs() >= 10.0 {
+                format!("{:.1}", value)
+            } else {
+                format!("{:.2}", value)
+            }
+        }
     }
 }
 

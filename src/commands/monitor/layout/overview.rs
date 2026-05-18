@@ -61,6 +61,12 @@ pub fn compute_two_by_four(area: Rect, _large: bool, sidebar: bool) -> OverviewR
     }
 }
 
+/// Single-column layout for narrow desktop / portrait terminals.
+///
+/// Eight panels stacked vertically with **weighted heights**: the first three
+/// (QPS / Latency / Error Rate — the golden signals) get 2× the height of the
+/// other five so they read like real charts instead of a uniform wall. This
+/// matches the "重点 + 列表" pattern Codex recommended for the portrait tier.
 pub fn compute_single_column(area: Rect) -> OverviewRects {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -76,9 +82,14 @@ pub fn compute_single_column(area: Rect) -> OverviewRects {
     let body = vertical[2];
     let footer = vertical[4];
 
+    // Weights: golden signals × 2, the rest × 1.
+    // Order matches MetricKind::all_default(): Qps, Latency, ErrorRate,
+    // Upstream, Cpu, Memory, Replicas, Runtime.
+    let weights = [2u16, 2, 2, 1, 1, 1, 1, 1];
+    let constraints: Vec<Constraint> = weights.iter().map(|w| Constraint::Ratio(*w as u32, 11)).collect();
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(vec![Constraint::Ratio(1, 8); 8])
+        .constraints(constraints)
         .split(body);
     OverviewRects {
         header,

@@ -39,6 +39,8 @@ pub fn draw_phone(area: Rect, buf: &mut Buffer, st: &AppState) {
             focused: true,
             agg_mode: st.agg_mode(metric),
             traffic_display: pick_traffic_display(st),
+            // Phone tier: narrow Y-axis labels so the chart gets more horizontal space.
+            compact: true,
         }
         .render(rects.panel, buf);
     }

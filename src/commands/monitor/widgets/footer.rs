@@ -42,9 +42,11 @@ impl<'a> Widget for Footer<'a> {
 
         match self.state.view {
             View::Overview => {
-                // Phone tier doesn't have a 2D grid — arrows page through panels
+                // Phone tier doesn't have a 2D grid — any arrow flips one panel.
+                // Showing all four arrows in the hint matches the dot-indicator's
+                // horizontal layout so users naturally try ←→ too.
                 if matches!(self.tier(), LayoutTier::Phone) {
-                    spans.extend(key("↑↓", "panel"));
+                    spans.extend(key("↑↓←→", "flip"));
                 } else {
                     spans.extend(key("↑↓←→", "focus"));
                 }

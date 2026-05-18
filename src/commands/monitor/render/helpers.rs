@@ -218,6 +218,7 @@ pub fn render_single_chart(
             series,
             unit: &md.unit,
             display: widgets::stacked_bar::TrafficDisplay::Auto,
+            compact: false,
         }
         .render(area, buf);
         return;

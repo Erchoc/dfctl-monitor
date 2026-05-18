@@ -17,6 +17,7 @@ pub struct StackedBar<'a> {
     pub series: Vec<StackedSeries>,
     pub unit: &'a str,
     pub display: TrafficDisplay,
+    pub compact: bool,
 }
 
 pub struct StackedSeries {
@@ -33,7 +34,7 @@ impl<'a> Widget for StackedBar<'a> {
         if area.width < 10 || area.height < 4 || self.series.is_empty() {
             return;
         }
-        let label_w: u16 = 6;
+        let label_w: u16 = if self.compact { 4 } else { 6 };
         let chart_x = area.x + label_w;
         let chart_w = area.width.saturating_sub(label_w);
         let chart_h = area.height;
@@ -83,9 +84,11 @@ impl<'a> Widget for StackedBar<'a> {
             let frac = i as f32 / (n_labels - 1) as f32;
             let value = max_total - (max_total) * frac as f64;
             let row = area.y + ((chart_h - 1) as f32 * frac) as u16;
-            let label = match display_unit {
-                "qps" => format!("{:.0}/s", value / 60.0),
-                "rpm" => format!("{:.0}/m", value),
+            let label = match (display_unit, self.compact) {
+                ("qps", true) => format!("{:.0}", value / 60.0),
+                ("qps", false) => format!("{:.0}/s", value / 60.0),
+                ("rpm", true) => format!("{:.0}", value),
+                ("rpm", false) => format!("{:.0}/m", value),
                 _ => format_y_label(value, display_unit),
             };
             let span = Span::styled(

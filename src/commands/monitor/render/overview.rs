@@ -50,6 +50,7 @@ pub fn draw_overview(area: Rect, buf: &mut Buffer, st: &AppState, tier: LayoutTi
                 focused: i == st.focused_panel,
                 agg_mode: st.agg_mode(metric),
                 traffic_display: pick_traffic_display(st),
+                compact: false,
             }
             .render(*panel, buf);
         }

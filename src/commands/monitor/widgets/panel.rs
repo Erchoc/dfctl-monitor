@@ -18,6 +18,8 @@ pub struct MetricPanel<'a> {
     pub focused: bool,
     pub agg_mode: AggMode,
     pub traffic_display: TrafficDisplay,
+    /// Compact mode: narrower Y axis labels + tighter chart for phone tier.
+    pub compact: bool,
 }
 
 impl<'a> Widget for MetricPanel<'a> {
@@ -26,19 +28,34 @@ impl<'a> Widget for MetricPanel<'a> {
             return;
         }
         let status = assess_health(self.metric, &self.data.series);
+        // Border presentation rules:
+        //   focused                  → Double border, accent_ok colour (full attention)
+        //   ALERT (regardless focus) → Thick border, alert red (must-see)
+        //   WARN  (not focused)      → Rounded + warn orange
+        //   OK    (not focused)      → Rounded + dim grey (recede)
         let (border_color, border_type) = if self.focused {
             (ACCENT_OK, BorderType::Double)
+        } else if matches!(status, HealthStatus::Alert) {
+            // ALERT: thick saturated frame (something is on fire)
+            (status.color(), BorderType::Thick)
         } else {
+            // OK & WARN: dim grey rounded frame — recede so charts pop
             (status.border_color(), BorderType::Rounded)
         };
 
         // ── Title ──
         let title_spans = build_title(self.metric, &self.data, status, self.focused, self.agg_mode);
+        let mut border_style = Style::default().fg(border_color.to_color());
+        // Only ALERT borders are bolded — WARN signals are carried by the title
+        // badge and ▲ glyph, not by the frame.
+        if matches!(status, HealthStatus::Alert) && !self.focused {
+            border_style = border_style.add_modifier(Modifier::BOLD);
+        }
         let block = Block::default()
             .borders(Borders::ALL)
             .border_type(border_type)
             .title(Line::from(title_spans))
-            .style(Style::default().fg(border_color.to_color()));
+            .style(border_style);
         let inner = block.inner(area);
         block.render(area, buf);
 
@@ -61,11 +78,11 @@ impl<'a> Widget for MetricPanel<'a> {
         let body = Rect::new(inner.x, body_y, inner.width, body_h);
 
         match self.metric {
-            MetricKind::Qps => render_stacked(self.data, body, buf, self.traffic_display),
+            MetricKind::Qps => render_stacked(self.data, body, buf, self.traffic_display, self.compact),
             MetricKind::Replicas => {
                 ReplicasTable { pods: self.pods }.render(body, buf);
             }
-            _ => render_area(self.metric, self.data, body, buf, false, self.agg_mode),
+            _ => render_area(self.metric, self.data, body, buf, false, self.agg_mode, self.compact),
         }
     }
 }
@@ -78,9 +95,22 @@ fn build_title(
     agg_mode: AggMode,
 ) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
+    // Status glyph: filled diamond for OK, triangle (alert/warn) for issues.
+    // Triangles draw the eye faster than the same-shape diamond.
+    let glyph = match status {
+        HealthStatus::Alert => "▲ ",
+        HealthStatus::Warn => "▲ ",
+        HealthStatus::Ok => "◆ ",
+    };
     spans.push(Span::styled(
-        "◆ ",
-        Style::default().fg(status.color().to_color()),
+        glyph,
+        Style::default()
+            .fg(status.color().to_color())
+            .add_modifier(if matches!(status, HealthStatus::Ok) {
+                Modifier::empty()
+            } else {
+                Modifier::BOLD
+            }),
     ));
     let title = metric.title().to_string();
     let title_with_unit = match metric {
@@ -240,7 +270,13 @@ fn format_short_value(v: f64, unit: &str) -> String {
     }
 }
 
-fn render_stacked(data: &MetricData, area: Rect, buf: &mut Buffer, display: TrafficDisplay) {
+fn render_stacked(
+    data: &MetricData,
+    area: Rect,
+    buf: &mut Buffer,
+    display: TrafficDisplay,
+    compact: bool,
+) {
     let series: Vec<StackedSeries> = data
         .series
         .iter()
@@ -257,6 +293,7 @@ fn render_stacked(data: &MetricData, area: Rect, buf: &mut Buffer, display: Traf
         series,
         unit: &data.unit,
         display,
+        compact,
     }
     .render(area, buf);
 }
@@ -268,8 +305,9 @@ fn render_area(
     buf: &mut Buffer,
     with_cursor: bool,
     agg_mode: AggMode,
+    compact: bool,
 ) {
-    let mut chart = AreaChart::new(&data.unit).cursor(with_cursor);
+    let mut chart = AreaChart::new(&data.unit).cursor(with_cursor).compact(compact);
 
     // Pick which series to display based on aggregation mode for CPU/Memory-style
     // multi-series metrics that carry both aggregate lines and per-pod lines.
