@@ -2,7 +2,7 @@
 
 > **Application metrics in your terminal — `k9s` × `btop` for your service dashboards.**
 
-`df monitor <app>` is a Rust TUI for staring at production metrics during release‑watch, on‑call, or just because you've got a spare monitor and like seeing curves move. It's designed to feel like `btop` (rich Braille charts, soft glows, status badges) but speak the language of an *application* dashboard: QPS by status code, latency percentiles, per‑pod CPU/Memory, upstream dependencies, restart events.
+`dfctl monitor <app>` is a Rust TUI for staring at production metrics during release‑watch, on‑call, or just because you've got a spare monitor and like seeing curves move. It's designed to feel like `btop` (rich Braille charts, soft glows, status badges) but speak the language of an *application* dashboard: QPS by status code, latency percentiles, per‑pod CPU/Memory, upstream dependencies, restart events.
 
 It also speaks JSON so an AI agent can read what you're looking at.
 
@@ -16,14 +16,14 @@ It also speaks JSON so an AI agent can read what you're looking at.
 - **`watch` mode** — auto‑refresh with a live countdown in the header, pause/resume with space.
 - **Aggregation switching** — `a` cycles each panel through max / avg / sum / p95 / per‑pod. Title reflects the mode.
 - **Range picker** — `R` opens an overlay to flip between 15m / 1h / 3h / 6h / 12h / 24h.
-- **JSON output** — `df monitor <app> --json` writes structured data with `stats` (min/max/avg/p50/p95/p99) for upstream agents and scripts.
+- **JSON output** — `dfctl monitor <app> --json` writes structured data with `stats` (min/max/avg/p50/p95/p99) for upstream agents and scripts.
 - **Truecolor palette** — proper accent / warn / alert colors, status‑colored panel borders, dimmed subtitles.
 
 ## Screenshots
 
 | | |
 |---|---|
-| **Default overview** (2×4, 180×48) | **Single‑metric detail** (`df monitor app --metric=cpu`) |
+| **Default overview** (2×4, 180×48) | **Single‑metric detail** (`dfctl monitor app --metric=cpu`) |
 | ![overview](docs/screenshots/overview.png) | ![single](docs/screenshots/single.png) |
 | **Range picker overlay** (`R`) | **Phone — single panel paging** (80×24) |
 | ![range](docs/screenshots/range.png) | ![phone](docs/screenshots/phone.png) |
@@ -40,20 +40,20 @@ cd dfctl-monitor
 cargo install --path .
 ```
 
-The binary is called `df` (with `monitor` as a subcommand) so you can extend it with more subcommands later.
+The binary is called `dfctl` (with `monitor` as a subcommand) so you can extend it with more subcommands later without colliding with the system `df` (disk‑free).
 
 > **Fonts.** Charts use Braille block characters (U+2800+). Use a Nerd Font with full Braille support — `JetBrainsMono Nerd Font`, `MesloLGS Nerd Font`, `FiraCode Nerd Font`, or `CascadiaCode Nerd Font` are all good. If you see box glyphs (口) instead of dots, your terminal font is the culprit.
 
 ## Usage
 
 ```bash
-df monitor                           # default app, 3h range, 2x4 overview
-df monitor my-service                # monitor a specific app
-df monitor my-service --watch        # 60s auto-refresh
-df monitor my-service --since=24h    # 24h history
-df monitor my-service --metric=cpu   # single-metric detail mode
-df monitor my-service --json         # dump metrics as JSON (no TUI)
-df monitor my-service --pod=pod-a,pod-b   # filter to specific pods
+dfctl monitor                           # default app, 3h range, 2x4 overview
+dfctl monitor my-service                # monitor a specific app
+dfctl monitor my-service --watch        # 60s auto-refresh
+dfctl monitor my-service --since=24h    # 24h history
+dfctl monitor my-service --metric=cpu   # single-metric detail mode
+dfctl monitor my-service --json         # dump metrics as JSON (no TUI)
+dfctl monitor my-service --pod=pod-a,pod-b   # filter to specific pods
 ```
 
 ### Key bindings
@@ -76,7 +76,7 @@ df monitor my-service --pod=pod-a,pod-b   # filter to specific pods
 
 ## Configuration
 
-`df` looks for `~/.config/df/config.toml` (XDG‑aware):
+`dfctl` looks for `~/.config/df/config.toml` (XDG‑aware):
 
 ```toml
 [monitor]
@@ -90,7 +90,7 @@ url = "http://internal-monitor-api.example.com"
 main = "demo-app-main-cluster"
 ```
 
-App‑name aliases are resolved before any data lookup, so `df monitor main` becomes `df monitor demo-app-main-cluster`.
+App‑name aliases are resolved before any data lookup, so `dfctl monitor main` becomes `dfctl monitor demo-app-main-cluster`.
 
 ## Exit codes
 
@@ -104,7 +104,7 @@ App‑name aliases are resolved before any data lookup, so `df monitor main` bec
 
 ## Data shape
 
-The current build ships with a `MockDataSource` (100 ms simulated latency) so you can demo `df monitor` without a backend. The data contract is:
+The current build ships with a `MockDataSource` (100 ms simulated latency) so you can demo `dfctl monitor` without a backend. The data contract is:
 
 ```rust
 struct MonitorResponse {
@@ -139,7 +139,7 @@ struct MonitorResponse {
 
 ## Why "dfctl"?
 
-`df` is the entry binary (short, fast to type, repurposes nothing on most systems' PATH — but you can alias it). The repo is `dfctl-monitor` because this is just the `monitor` subcommand; more `df` subcommands may come later.
+`dfctl` is short for "df control" — i.e. tooling for the *df* (Dragonfly) platform. The binary intentionally avoids the system `df` (disk‑free) name. The repo is named `dfctl-monitor` because this is just the `monitor` subcommand; more `dfctl` subcommands may come later.
 
 ## Acknowledgements
 

@@ -4,6 +4,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub struct OverviewRects {
     pub header: Rect,
     pub panels: Vec<Rect>, // 8
+    pub sidebar: Option<Rect>,
     pub footer: Rect,
 }
 
@@ -23,7 +24,7 @@ pub fn compute_two_by_four(area: Rect, _large: bool, sidebar: bool) -> OverviewR
     let body = vertical[2];
     let footer = vertical[4];
 
-    let (main, _side) = if sidebar {
+    let (main, side) = if sidebar {
         let h = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Min(40), Constraint::Length(36)])
@@ -55,6 +56,7 @@ pub fn compute_two_by_four(area: Rect, _large: bool, sidebar: bool) -> OverviewR
     OverviewRects {
         header,
         panels,
+        sidebar: side,
         footer,
     }
 }
@@ -81,6 +83,7 @@ pub fn compute_single_column(area: Rect) -> OverviewRects {
     OverviewRects {
         header,
         panels: rows.iter().copied().collect(),
+        sidebar: None,
         footer,
     }
 }

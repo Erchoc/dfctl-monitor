@@ -55,5 +55,13 @@ pub fn draw_overview(area: Rect, buf: &mut Buffer, st: &AppState, tier: LayoutTi
         }
     }
 
+    // Render the events sidebar on ultra-wide terminals (TwoByFourSidebar tier).
+    if let Some(sidebar) = rects.sidebar {
+        widgets::events_sidebar::EventsSidebar {
+            events: &data.events,
+        }
+        .render(sidebar, buf);
+    }
+
     widgets::footer::Footer { state: st }.render(rects.footer, buf);
 }

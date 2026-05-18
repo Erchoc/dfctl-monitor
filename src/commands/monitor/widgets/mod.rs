@@ -1,5 +1,6 @@
 pub mod chart;
 pub mod dot_indicator;
+pub mod events_sidebar;
 pub mod footer;
 pub mod header;
 pub mod help;
