@@ -37,11 +37,15 @@ impl DataSource for MockDataSource {
 }
 
 fn generate(q: &MonitorQuery, seed: u64) -> MonitorResponse {
-    // mix the app name into the seed so different apps render different curves
+    // Seed is mixed with: app name (different apps render different curves) and
+    // q.to truncated to the minute (so live refreshes ~every 60s produce a
+    // visibly different curve, matching a real time-series window sliding right).
     let mut h: u64 = seed;
     for b in q.app.as_bytes() {
         h = h.wrapping_mul(0x100000001b3).wrapping_add(*b as u64);
     }
+    let bucket = (q.to.timestamp() / 60) as u64; // 1-minute granularity
+    h ^= bucket.wrapping_mul(0x9e3779b97f4a7c15);
     let mut rng = ChaCha8Rng::seed_from_u64(h);
 
     let total = (q.to - q.from).num_seconds().max(60) as i64;

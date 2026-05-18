@@ -73,7 +73,9 @@ pub fn handle_key(key: KeyEvent, st: &mut AppState, tier: LayoutTier) -> Action 
             st.cycle_agg(metric);
             return Action::None;
         }
-        KeyCode::Char('R') => {
+        // `t` for time-range (preferred mnemonic). `R` kept as an undocumented
+        // alias for users who started on the old build.
+        KeyCode::Char('t') | KeyCode::Char('R') => {
             // Open range picker, remembering where to return to
             let previous = Box::new(st.view.clone());
             // pre-select the index that matches current --since if possible
@@ -134,14 +136,16 @@ pub fn handle_key(key: KeyEvent, st: &mut AppState, tier: LayoutTier) -> Action 
             KeyCode::Esc => {
                 st.view = View::Overview;
             }
-            KeyCode::Char('[') | KeyCode::Left => {
+            // ← / h : previous metric in detail view; [ kept as legacy alias.
+            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('[') => {
                 let order = MetricKind::all_default();
                 let idx = order.iter().position(|x| *x == m).unwrap_or(0);
                 let next = (idx + order.len() - 1) % order.len();
                 st.view = View::SingleMetric(order[next]);
                 st.focused_panel = next;
             }
-            KeyCode::Char(']') | KeyCode::Right => {
+            // → / l : next metric in detail view; ] kept as legacy alias.
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char(']') => {
                 let order = MetricKind::all_default();
                 let idx = order.iter().position(|x| *x == m).unwrap_or(0);
                 let next = (idx + 1) % order.len();

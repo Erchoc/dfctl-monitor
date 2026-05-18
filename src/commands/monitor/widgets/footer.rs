@@ -43,8 +43,6 @@ impl<'a> Widget for Footer<'a> {
         match self.state.view {
             View::Overview => {
                 // Phone tier doesn't have a 2D grid — any arrow flips one panel.
-                // Showing all four arrows in the hint matches the dot-indicator's
-                // horizontal layout so users naturally try ←→ too.
                 if matches!(self.tier(), LayoutTier::Phone) {
                     spans.extend(key("↑↓←→", "flip"));
                 } else {
@@ -52,7 +50,7 @@ impl<'a> Widget for Footer<'a> {
                 }
                 spans.extend(key("⏎", "detail"));
                 spans.extend(key("a", "agg"));
-                spans.extend(key("R", "range"));
+                spans.extend(key("t", "time"));
                 spans.extend(key("w", "watch"));
                 spans.extend(key("r", "refresh"));
                 spans.extend(key("?", "help"));
@@ -60,9 +58,9 @@ impl<'a> Widget for Footer<'a> {
             }
             View::SingleMetric(_) => {
                 spans.extend(key("esc", "back"));
-                spans.extend(key("[]", "switch"));
+                spans.extend(key("←→", "metric"));
                 spans.extend(key("a", "agg"));
-                spans.extend(key("R", "range"));
+                spans.extend(key("t", "time"));
                 spans.extend(key("w", "watch"));
                 spans.extend(key("?", "help"));
                 spans.extend(key("q", "quit"));

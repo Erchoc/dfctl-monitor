@@ -55,16 +55,25 @@ impl<'a> Widget for Header<'a> {
 
         if let Some(d) = self.data {
             if !self.compact {
+                // Show "from → to · duration" so the user can see exactly which
+                // time window they're looking at and confirm `t` (range picker)
+                // actually changed the query.
                 let from = d.time_range.from.with_timezone(&Local);
                 let to = d.time_range.to.with_timezone(&Local);
                 let dur = to - from;
                 let dur_h = dur.num_hours();
                 let dur_m = dur.num_minutes() % 60;
-                let range_str = if dur_h > 0 {
-                    format!(" · range {}h{:02}m", dur_h, dur_m)
+                let dur_str = if dur_h > 0 {
+                    format!("{}h{:02}m", dur_h, dur_m)
                 } else {
-                    format!(" · range {}m", dur.num_minutes())
+                    format!("{}m", dur.num_minutes())
                 };
+                let range_str = format!(
+                    " · {} → {} ({})",
+                    from.format("%H:%M"),
+                    to.format("%H:%M"),
+                    dur_str,
+                );
                 left.push(Span::styled(
                     range_str,
                     Style::default().fg(TEXT_SECONDARY.to_color()),
@@ -88,9 +97,16 @@ impl<'a> Widget for Header<'a> {
                         Style::default().fg(ACCENT_ALERT.to_color()).add_modifier(Modifier::BOLD),
                     ));
                 } else {
+                    // Breathing LIVE indicator — the dot alternates ●/○ every second
+                    // so the user can see the binary is alive even when mock data
+                    // hasn't changed yet (real data refreshes every interval).
+                    let pulse = (now.timestamp() % 2) == 0;
+                    let dot = if pulse { "●" } else { "○" };
                     spans.push(Span::styled(
-                        "◉ LIVE ",
-                        Style::default().fg(ACCENT_OK.to_color()).add_modifier(Modifier::BOLD),
+                        format!("{} LIVE ", dot),
+                        Style::default()
+                            .fg(ACCENT_OK.to_color())
+                            .add_modifier(Modifier::BOLD),
                     ));
                     if let Some(secs) = self.state.countdown_seconds() {
                         spans.push(Span::styled(
