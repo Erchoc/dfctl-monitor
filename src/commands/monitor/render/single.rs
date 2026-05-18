@@ -16,6 +16,7 @@ pub fn draw_single(area: Rect, buf: &mut Buffer, st: &AppState, metric: MetricKi
     widgets::header::Header {
         state: st,
         data: st.data.as_ref(),
+        compact: false,
     }
     .render(rects.header, buf);
 

@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 mod commands;
 
 #[derive(Parser)]
-#[command(name = "df", version, about = "df CLI — application metrics in your terminal")]
+#[command(name = "dfctl", version, about = "dfctl — application metrics in your terminal")]
 struct Cli {
     #[command(subcommand)]
     command: Command,

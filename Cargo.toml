@@ -1,12 +1,14 @@
 [package]
-name = "df"
+name = "dfctl"
 version = "0.1.0"
 edition = "2021"
-description = "df CLI - application metrics monitor in your terminal"
-authors = ["DNF"]
+description = "dfctl: application metrics monitor in your terminal (k9s x btop for service dashboards)"
+authors = ["erchoc"]
+repository = "https://github.com/erchoc/dfctl-monitor"
+license = "MIT"
 
 [[bin]]
-name = "df"
+name = "dfctl"
 path = "src/main.rs"
 
 [dependencies]

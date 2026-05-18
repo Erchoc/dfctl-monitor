@@ -68,10 +68,6 @@ impl<'a> Widget for Footer<'a> {
             View::Help => {
                 spans.push(Span::styled("press any key to dismiss", dim_style));
             }
-            View::TooSmall => {
-                spans.extend(key("r", "retry"));
-                spans.extend(key("q", "quit"));
-            }
             View::RangePicker { .. } => {
                 spans.extend(key("↑↓", "select"));
                 spans.extend(key("⏎", "apply"));

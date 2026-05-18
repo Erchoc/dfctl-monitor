@@ -20,6 +20,7 @@ pub struct StackedBar<'a> {
 }
 
 pub struct StackedSeries {
+    #[allow(dead_code)] // surfaced through future tooltips/legends
     pub label: String,
     pub color: Rgb,
     pub points: Vec<f64>,

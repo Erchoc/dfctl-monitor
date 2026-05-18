@@ -12,13 +12,6 @@ impl Rgb {
         Color::Rgb(self.0, self.1, self.2)
     }
 
-    pub fn from_hex(hex: u32) -> Self {
-        Self(
-            ((hex >> 16) & 0xff) as u8,
-            ((hex >> 8) & 0xff) as u8,
-            (hex & 0xff) as u8,
-        )
-    }
 }
 
 pub fn lerp(a: Rgb, b: Rgb, t: f32) -> Rgb {
@@ -48,7 +41,6 @@ pub const SERIES_BLUE: Rgb = Rgb::new(0x7c, 0x9e, 0xff);
 pub const SERIES_GREEN: Rgb = Rgb::new(0x50, 0xe0, 0xa0);
 pub const SERIES_ORANGE: Rgb = Rgb::new(0xff, 0xb8, 0x6c);
 pub const SERIES_PINK: Rgb = Rgb::new(0xff, 0x79, 0xc6);
-pub const SERIES_RED: Rgb = Rgb::new(0xff, 0x6b, 0x6b);
 pub const SERIES_YELLOW: Rgb = Rgb::new(0xf1, 0xfa, 0x8c);
 
 pub fn pod_color(name: &str) -> Rgb {

@@ -290,7 +290,7 @@ fn generate_upstream(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricDat
     let spike_at = (n as f64 * 0.78) as usize;
     let mut hsf = smooth_walk(rng, n, 48.0, 4.0, 0.85);
     let mut db = smooth_walk(rng, n, 24.0, 3.0, 0.85);
-    let mut redis = smooth_walk(rng, n, 6.0, 0.6, 0.85);
+    let redis = smooth_walk(rng, n, 6.0, 0.6, 0.85);
     add_spike(&mut db, spike_at, 65.0, 7);
     add_spike(&mut hsf, spike_at, 22.0, 5);
 

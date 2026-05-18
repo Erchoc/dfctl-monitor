@@ -11,6 +11,9 @@ use ratatui::widgets::{Paragraph, Widget};
 pub struct Header<'a> {
     pub state: &'a AppState,
     pub data: Option<&'a MonitorResponse>,
+    /// Trim header to `app · env · time` only (spec § 3.4) — for phone-sized
+    /// terminals where the full header would overflow.
+    pub compact: bool,
 }
 
 impl<'a> Widget for Header<'a> {
@@ -23,36 +26,57 @@ impl<'a> Widget for Header<'a> {
         let region = self.data.map(|d| d.region.as_str()).unwrap_or("—");
         let env = self.data.map(|d| d.env.as_str()).unwrap_or("—");
 
-        let mut left = vec![
-            Span::styled(
-                "df monitor ",
+        // On phone-width terminals (< 60 cols) we drop the brand prefix entirely so the
+        // app/env can fit. Right-aligned LIVE/PAUSED + time still fits in ~12 chars.
+        let tiny = self.compact && area.width < 60;
+        let mut left = Vec::new();
+        if !tiny {
+            left.push(Span::styled(
+                "dfctl ",
                 Style::default().fg(ACCENT_OK.to_color()).add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(app, Style::default().fg(TEXT_PRIMARY.to_color()).add_modifier(Modifier::BOLD)),
-            Span::styled(format!(" · {}", env), Style::default().fg(TEXT_SECONDARY.to_color())),
-            Span::styled(format!(" · {}", region), Style::default().fg(TEXT_SECONDARY.to_color())),
-        ];
+            ));
+        }
+        left.push(Span::styled(
+            app,
+            Style::default().fg(TEXT_PRIMARY.to_color()).add_modifier(Modifier::BOLD),
+        ));
+        if !tiny {
+            left.push(Span::styled(
+                format!(" · {}", env),
+                Style::default().fg(TEXT_SECONDARY.to_color()),
+            ));
+        }
+        if !self.compact {
+            left.push(Span::styled(
+                format!(" · {}", region),
+                Style::default().fg(TEXT_SECONDARY.to_color()),
+            ));
+        }
 
         if let Some(d) = self.data {
-            let from = d.time_range.from.with_timezone(&Local);
-            let to = d.time_range.to.with_timezone(&Local);
-            let dur = to - from;
-            let dur_h = dur.num_hours();
-            let dur_m = dur.num_minutes() % 60;
-            let range_str = if dur_h > 0 {
-                format!(" · range {}h{:02}m", dur_h, dur_m)
-            } else {
-                format!(" · range {}m", dur.num_minutes())
-            };
-            left.push(Span::styled(
-                range_str,
-                Style::default().fg(TEXT_SECONDARY.to_color()),
-            ));
-            let pods_count = d.pods.len();
-            left.push(Span::styled(
-                format!(" · {} pods", pods_count),
-                Style::default().fg(TEXT_SECONDARY.to_color()),
-            ));
+            if !self.compact {
+                let from = d.time_range.from.with_timezone(&Local);
+                let to = d.time_range.to.with_timezone(&Local);
+                let dur = to - from;
+                let dur_h = dur.num_hours();
+                let dur_m = dur.num_minutes() % 60;
+                let range_str = if dur_h > 0 {
+                    format!(" · range {}h{:02}m", dur_h, dur_m)
+                } else {
+                    format!(" · range {}m", dur.num_minutes())
+                };
+                left.push(Span::styled(
+                    range_str,
+                    Style::default().fg(TEXT_SECONDARY.to_color()),
+                ));
+            }
+            if !self.compact {
+                let pods_count = d.pods.len();
+                left.push(Span::styled(
+                    format!(" · {} pods", pods_count),
+                    Style::default().fg(TEXT_SECONDARY.to_color()),
+                ));
+            }
         }
 
         let right = {

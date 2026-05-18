@@ -21,10 +21,14 @@ impl LayoutTier {
         // Size-based tiers always win — even in single-metric mode we want phone
         // layout on a phone-sized terminal. `--metric` only controls which view
         // is initially shown (see AppState::new).
-        if w < 60 || h < 20 {
+        if w < 36 || h < 16 {
             return Self::TooSmall;
         }
-        if w < 100 || h < 30 {
+        // Phone tier covers iPhone landscape (~80×24), iPhone portrait (~40×40),
+        // iPad mini portrait (~70×80), and any case where stacking 8 panels
+        // vertically would leave each panel < 5 rows tall (unreadable).
+        let fits_8_panel_column = h >= 50; // ~6 rows per panel after header/footer
+        if w < 100 || h < 30 || (w < 130 && !fits_8_panel_column) {
             return Self::Phone;
         }
         // single-metric CLI flag opts into the dedicated SingleMetric tier only on

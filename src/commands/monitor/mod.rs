@@ -35,6 +35,7 @@ use layout::LayoutTier;
 use state::{AppState, View};
 
 #[derive(thiserror::Error, Debug)]
+#[allow(dead_code)] // future variants for HTTP backend integration
 pub enum MonitorError {
     #[error("terminal too small: {w}x{h}")]
     TerminalTooSmall { w: u16, h: u16 },
@@ -221,7 +222,7 @@ async fn main_loop<B: ratatui::backend::Backend>(
                                 st.fetch_in_flight = true;
                             }
                         }
-                        Action::ToggleHelp | Action::None => {}
+                        Action::None => {}
                     }
                 }
             }

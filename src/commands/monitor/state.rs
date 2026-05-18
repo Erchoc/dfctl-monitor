@@ -41,7 +41,6 @@ pub enum View {
     Overview,
     SingleMetric(MetricKind),
     Help,
-    TooSmall,
     RangePicker { previous: Box<View>, selected: usize },
 }
 
@@ -67,8 +66,6 @@ pub struct AppState {
     pub watch_paused: bool,
     pub error: Option<String>,
     pub terminal_size: (u16, u16),
-    pub started_at: Instant,
-    pub last_tick: Instant,
     pub agg_modes: HashMap<MetricKind, AggMode>,
     pub force_traffic_unit: Option<TrafficUnit>,
 }
@@ -111,8 +108,6 @@ impl AppState {
             watch_paused: false,
             error: None,
             terminal_size: size,
-            started_at: Instant::now(),
-            last_tick: Instant::now(),
             agg_modes: HashMap::new(),
             force_traffic_unit: None,
         }

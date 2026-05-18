@@ -60,10 +60,6 @@ pub fn series_color(metric: MetricKind, series: &Series) -> Rgb {
     }
 }
 
-/// For CPU/Memory we tend to overlay max (bright) + avg (dim). Returns true for the dim variant.
-pub fn is_dim_series(series: &Series) -> bool {
-    series.label == "avg"
-}
 
 pub fn assess_health(metric: MetricKind, series: &[Series]) -> HealthStatus {
     match metric {

@@ -16,14 +16,13 @@ pub struct MetricPanel<'a> {
     pub data: &'a MetricData,
     pub pods: &'a [PodInfo],
     pub focused: bool,
-    pub compact: bool,
     pub agg_mode: AggMode,
     pub traffic_display: TrafficDisplay,
 }
 
 impl<'a> Widget for MetricPanel<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        if area.width < 10 || area.height < 5 {
+        if area.width < 10 || area.height < 3 {
             return;
         }
         let status = assess_health(self.metric, &self.data.series);

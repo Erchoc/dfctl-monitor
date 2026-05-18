@@ -46,7 +46,7 @@ impl Widget for TooSmall {
             buf,
             inner,
             y,
-            format!("df monitor needs at least  60 × 20"),
+            "dfctl monitor needs at least 36 × 16".to_string(),
             txt,
         );
         y += 1;

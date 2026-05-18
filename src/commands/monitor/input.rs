@@ -10,7 +10,6 @@ pub enum Action {
     ToggleWatch,
     TogglePause,
     RefreshNow,
-    ToggleHelp,
     RangeChanged,
 }
 
@@ -139,7 +138,7 @@ pub fn handle_key(key: KeyEvent, st: &mut AppState, tier: LayoutTier) -> Action 
             }
             _ => {}
         },
-        View::Help | View::TooSmall | View::RangePicker { .. } => {}
+        View::Help | View::RangePicker { .. } => {}
     }
     Action::None
 }

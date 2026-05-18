@@ -162,6 +162,7 @@ pub enum Aggregation {
 }
 
 impl Aggregation {
+    #[allow(dead_code)] // surfaced through future panel subtitles
     pub fn label(&self) -> &'static str {
         match self {
             Aggregation::Max => "max",
@@ -205,6 +206,7 @@ impl EventKind {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // pods/metrics fields are wired through to the HTTP backend
 pub struct MonitorQuery {
     pub app: String,
     pub from: DateTime<Utc>,

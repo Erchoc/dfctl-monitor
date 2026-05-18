@@ -24,6 +24,7 @@ pub fn draw_overview(area: Rect, buf: &mut Buffer, st: &AppState, tier: LayoutTi
     widgets::header::Header {
         state: st,
         data: st.data.as_ref(),
+        compact: matches!(tier, LayoutTier::Phone),
     }
     .render(rects.header, buf);
 
@@ -47,7 +48,6 @@ pub fn draw_overview(area: Rect, buf: &mut Buffer, st: &AppState, tier: LayoutTi
                 data: md,
                 pods: &data.pods,
                 focused: i == st.focused_panel,
-                compact: matches!(tier, LayoutTier::SingleColumn | LayoutTier::Phone),
                 agg_mode: st.agg_mode(metric),
                 traffic_display: pick_traffic_display(st),
             }

@@ -16,6 +16,7 @@ pub fn draw_phone(area: Rect, buf: &mut Buffer, st: &AppState) {
     widgets::header::Header {
         state: st,
         data: st.data.as_ref(),
+        compact: true,
     }
     .render(rects.header, buf);
 
@@ -36,7 +37,6 @@ pub fn draw_phone(area: Rect, buf: &mut Buffer, st: &AppState) {
             data: md,
             pods: &data.pods,
             focused: true,
-            compact: true,
             agg_mode: st.agg_mode(metric),
             traffic_display: pick_traffic_display(st),
         }
@@ -80,6 +80,7 @@ pub fn draw_single_phone(area: Rect, buf: &mut Buffer, st: &AppState, metric: Me
     widgets::header::Header {
         state: st,
         data: st.data.as_ref(),
+        compact: true,
     }
     .render(header, buf);
 

@@ -45,12 +45,6 @@ impl Canvas {
         }
     }
 
-    pub fn cols(&self) -> u16 {
-        self.cols
-    }
-    pub fn rows(&self) -> u16 {
-        self.rows
-    }
     pub fn px_width(&self) -> usize {
         (self.cols as usize) * 2
     }
@@ -80,15 +74,6 @@ impl Canvas {
         } else {
             // keep existing color but still mark the bit (so the curve is continuous)
             cell.bits |= bit;
-        }
-    }
-
-    /// Draw a vertical line in pixel coordinates, filling every pixel between
-    /// y0 and y1 inclusive.
-    pub fn vline_px(&mut self, x: usize, y0: usize, y1: usize, color: Rgb, z: i16) {
-        let (lo, hi) = if y0 <= y1 { (y0, y1) } else { (y1, y0) };
-        for y in lo..=hi {
-            self.set_px(x, y, color, z);
         }
     }
 
