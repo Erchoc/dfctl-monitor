@@ -28,9 +28,28 @@ pub fn draw_phone(area: Rect, buf: &mut Buffer, st: &AppState) {
             return;
         }
     };
-    let order = MetricKind::all_default();
-    let idx = st.focused_panel.min(order.len() - 1);
-    let metric = order[idx];
+    // Filter optional metrics that have no data so the pager never lands on
+    // an empty "no data" page. Same rule as overview filter.
+    let order: Vec<MetricKind> = MetricKind::all_default()
+        .into_iter()
+        .filter(|m| {
+            !m.is_optional()
+                || data
+                    .metrics
+                    .get(m)
+                    .map(|md| !md.series.is_empty())
+                    .unwrap_or(false)
+        })
+        .collect();
+    let idx = if order.is_empty() {
+        0
+    } else {
+        st.focused_panel.min(order.len() - 1)
+    };
+    let metric = order
+        .get(idx)
+        .copied()
+        .unwrap_or(MetricKind::Qps);
     if let Some(md) = data.metrics.get(&metric) {
         widgets::panel::MetricPanel {
             metric,
@@ -135,7 +154,7 @@ pub fn draw_single_phone(area: Rect, buf: &mut Buffer, st: &AppState, metric: Me
         .split(kpi_rows[2]);
 
     let (curr_val, curr_sub) = derive_current(md);
-    let (avg_val, avg_sub) = derive_avg(md);
+    let (avg_val, avg_sub) = derive_avg(md, metric);
     let (peak_val, peak_sub) = derive_peak(md);
     let (trend_val, trend_sub, trend_color) = derive_trend(md);
 

@@ -83,6 +83,22 @@ pub fn assess_health_with_thresholds(
             .watch_series
             .as_deref()
             .and_then(|name| series.iter().find(|s| s.label == name))
+            // Per-metric defaults when API didn't specify watch_series:
+            //  - Latency → P95 (matches CURRENT KPI / panel headline)
+            //  - CPU/Memory → "max" aggregate if present
+            //  - Anything else → first non-pod series
+            .or_else(|| match metric {
+                MetricKind::Latency => series
+                    .iter()
+                    .find(|s| matches!(s.kind, crate::commands::monitor::data::SeriesKind::Percentile(95)))
+                    .or_else(|| {
+                        series.iter().find(|s| {
+                            matches!(s.kind, crate::commands::monitor::data::SeriesKind::Percentile(99))
+                        })
+                    }),
+                MetricKind::Cpu | MetricKind::Memory => series.iter().find(|s| s.label == "max"),
+                _ => None,
+            })
             .or_else(|| series.iter().find(|s| !matches!(s.kind, crate::commands::monitor::data::SeriesKind::Pod(_))))
             .or_else(|| series.first());
         if let Some(s) = probe {

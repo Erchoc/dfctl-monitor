@@ -202,12 +202,14 @@ impl<'a> Widget for PodCard<'a> {
         }
 
         // ── footer line: uptime / restart info (always shown) ──
+        // Use Braille / standard punctuation only — ↻ and ✓ render as口字框 on
+        // terminals without Nerd Font glyph fallbacks.
         if next_y < inner.y + inner.height {
             let txt = if let Some(at) = self.pod.last_restart_at {
-                format!(" ↻ restart {} ago", crate::commands::monitor::util::ago(at))
+                format!(" » restart {} ago", crate::commands::monitor::util::ago(at))
             } else {
                 format!(
-                    " ✓ uptime {}",
+                    " · uptime {}",
                     crate::commands::monitor::util::format_duration_short(self.pod.uptime_seconds)
                 )
             };

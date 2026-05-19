@@ -14,7 +14,7 @@ It also speaks JSON so an AI agent can read what you're looking at.
 
 - **8 default panels, btop‑grade rendering** — Braille area charts with edge + glow, stacked bar QPS chart, percentile lines, replica table.
 - **Single‑metric detail view** — KPI cards (CURRENT / AVG / PEAK / TREND), current‑value cursor, per‑pod sidebar with sparklines and stats, event row tying restarts/deploys/alerts to the chart.
-- **Responsive layouts** — 2×4 grid on desktop, single‑column on narrow windows, **dedicated phone tier** (single panel per page, dot indicator, ↑↓ to flip) for SSH from your phone.
+- **Responsive layouts** — 2×4 grid on desktop, single‑column on narrow windows, **dedicated phone tier** (single panel per page, dot indicator, ↑↓←→ to flip) for SSH from your phone.
 - **`watch` mode** — auto‑refresh with a live countdown in the header, pause/resume with space.
 - **Aggregation switching** — `a` cycles each panel through max / avg / sum / p95 / per‑pod. Title reflects the mode.
 - **Range picker** — `t` opens an overlay to flip between 15m / 1h / 3h / 6h / 12h / 24h.

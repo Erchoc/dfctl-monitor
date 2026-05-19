@@ -69,12 +69,17 @@ pub fn render_events(events: &[Event], area: Rect, buf: &mut Buffer) {
 }
 
 pub fn pick_card_color(metric: MetricKind, value: f64) -> Rgb {
+    // KPI card thresholds must match the panel-border thresholds in
+    // `theme::assess_health` so the cards and the badge agree. If you change
+    // a value here, change it there too — or better, factor the shared band
+    // table out into a single source of truth.
     match metric {
         MetricKind::ErrorRate => {
-            if value > 5.0 { ACCENT_ALERT } else if value > 2.0 { ACCENT_WARN } else { ACCENT_OK }
+            if value > 5.0 { ACCENT_ALERT } else if value > 1.0 { ACCENT_WARN } else { ACCENT_OK }
         }
         MetricKind::Latency => {
-            if value > 250.0 { ACCENT_ALERT } else if value > 150.0 { ACCENT_WARN } else { ACCENT_OK }
+            // P95-based gates (120 ms WARN, 200 ms ALERT). Was 150/250 (P99-era).
+            if value > 200.0 { ACCENT_ALERT } else if value > 120.0 { ACCENT_WARN } else { ACCENT_OK }
         }
         MetricKind::Cpu => {
             if value > 85.0 { ACCENT_ALERT } else if value > 70.0 { ACCENT_WARN } else { ACCENT_OK }
@@ -132,13 +137,25 @@ pub fn derive_current(md: &MetricData) -> (f64, String) {
     (0.0, "—".into())
 }
 
-pub fn derive_avg(md: &MetricData) -> (f64, String) {
-    let primary = md
-        .series
-        .iter()
-        .find(|s| s.label == "avg")
-        .or_else(|| md.series.iter().find(|s| !matches!(s.kind, SeriesKind::Pod(_))))
-        .or_else(|| md.series.first());
+pub fn derive_avg(md: &MetricData, metric: MetricKind) -> (f64, String) {
+    // Pick the right series to average:
+    //  - Latency → P95 (matches CURRENT card / panel headline)
+    //  - Anything with an "avg" series → use that aggregate
+    //  - Otherwise → first non-pod series
+    let primary = match metric {
+        MetricKind::Latency => md
+            .series
+            .iter()
+            .find(|s| matches!(s.kind, SeriesKind::Percentile(95)))
+            .or_else(|| md.series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(99))))
+            .or_else(|| md.series.first()),
+        _ => md
+            .series
+            .iter()
+            .find(|s| s.label == "avg")
+            .or_else(|| md.series.iter().find(|s| !matches!(s.kind, SeriesKind::Pod(_))))
+            .or_else(|| md.series.first()),
+    };
     let avg = primary.map(|s| s.stats().avg).unwrap_or(0.0);
     let sub = match primary.map(|s| s.label.as_str()) {
         Some("avg") | None => "time-window mean".to_string(),

@@ -177,7 +177,7 @@ pub fn draw_single(area: Rect, buf: &mut Buffer, st: &AppState, metric: MetricKi
 
     // KPI cards
     let (curr_val, curr_sub) = derive_current(md);
-    let (avg_val, avg_sub) = derive_avg(md);
+    let (avg_val, avg_sub) = derive_avg(md, metric);
     let (peak_val, peak_sub) = derive_peak(md);
     let (trend_val, trend_sub, trend_color) = derive_trend(md);
 
