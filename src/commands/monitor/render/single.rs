@@ -7,6 +7,18 @@ use crate::commands::monitor::theme;
 use crate::commands::monitor::widgets;
 use crate::commands::monitor::widgets::pod_card::PodCardReason;
 
+/// For Memory KPIs, return a "of XG limit" annotation based on the hottest
+/// pod's memory limit. Returns None for other metrics — keeps the helper
+/// no-op outside the case the user actually flagged.
+fn memory_limit_annotation(metric: MetricKind, pods: &[PodInfo]) -> Option<String> {
+    if !matches!(metric, MetricKind::Memory) {
+        return None;
+    }
+    let hot = pods.iter().max_by(|a, b| a.mem_bytes.cmp(&b.mem_bytes))?;
+    let limit_gb = hot.mem_limit_bytes? as f64 / (1024.0 * 1024.0 * 1024.0);
+    Some(format!("of {:.0}G", limit_gb))
+}
+
 const OUTLIER_SIGMA: f64 = 1.5;
 const RESTART_GRACE_SECONDS: u64 = 3600;
 /// Below this pod count, show every pod with a full card (small-cluster mode).
@@ -181,13 +193,24 @@ pub fn draw_single(area: Rect, buf: &mut Buffer, st: &AppState, metric: MetricKi
     let (peak_val, peak_sub) = derive_peak(md);
     let (trend_val, trend_sub, trend_color) = derive_trend(md);
 
+    // Annotate Memory KPIs with `of XG limit` (the hot pod's limit) so users
+    // see headroom on the CURRENT/PEAK cards, not just in the panel subtitle.
+    let limit_annotation = memory_limit_annotation(metric, &data.pods);
+
     let curr_color = pick_card_color(metric, curr_val);
     let peak_color = pick_card_color(metric, peak_val);
     let kpi_titles = ["CURRENT", "AVG", "PEAK", "TREND 10m"];
+    let with_lim = |sub: String| -> String {
+        if let Some(ref lim) = limit_annotation {
+            format!("{} · {}", sub, lim)
+        } else {
+            sub
+        }
+    };
     let kpi_values = [
-        (kpi_format(curr_val, &md.unit), curr_color, curr_sub),
+        (kpi_format(curr_val, &md.unit), curr_color, with_lim(curr_sub)),
         (kpi_format(avg_val, &md.unit), ACCENT_INFO, avg_sub),
-        (kpi_format(peak_val, &md.unit), peak_color, peak_sub),
+        (kpi_format(peak_val, &md.unit), peak_color, with_lim(peak_sub)),
         (trend_val, trend_color, trend_sub),
     ];
     for (i, rect) in rects.kpis.iter().enumerate() {

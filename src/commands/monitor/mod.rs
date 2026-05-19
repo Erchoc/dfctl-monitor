@@ -195,12 +195,13 @@ async fn main_loop<B: ratatui::backend::Backend>(
             _ = second_tick.tick() => {}
             evt = read_event() => {
                 if let Some(CtEvent::Key(k)) = evt {
-                    // crossterm sends Press, Release and Repeat events when the terminal
-                    // has kitty keyboard protocol enabled (Termius, WezTerm, recent
-                    // iTerm builds). Without this filter every keypress was processed
-                    // twice — once on Press, once on Release — making arrows and Enter
-                    // feel like they needed a double tap.
-                    if !matches!(k.kind, crossterm::event::KeyEventKind::Press) {
+                    // crossterm sends Press, Release and Repeat events when the host
+                    // terminal speaks kitty keyboard protocol (Termius, WezTerm, recent
+                    // iTerm). Accept Press *and* Repeat so holding an arrow key still
+                    // pages continuously; drop Release which was the source of the
+                    // "needs two taps" bug — every key was firing twice without this.
+                    use crossterm::event::KeyEventKind;
+                    if matches!(k.kind, KeyEventKind::Release) {
                         continue;
                     }
                     let tier = LayoutTier::from_size(st.terminal_size.0, st.terminal_size.1, &st.args);

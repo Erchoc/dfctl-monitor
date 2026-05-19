@@ -111,7 +111,9 @@ pub fn kpi_format(v: f64, unit: &str) -> String {
     match unit {
         "%" => format!("{:.1}%", v),
         "ms" => format!("{:.0}ms", v),
-        "GB" => format!("{:.2} GB", v),
+        // Display as GiB short-form to match Replicas table, pod cards, and
+        // subtitles. Internally these numbers are GiB (divided by 1024^3).
+        "GB" => format!("{:.1}G", v),
         "rpm" => widgets::chart::format_traffic(v),
         _ => format!("{:.1}", v),
     }

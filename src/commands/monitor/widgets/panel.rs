@@ -67,8 +67,9 @@ impl<'a> Widget for MetricPanel<'a> {
             return;
         }
 
-        // subtitle
-        let subtitle = build_subtitle(self.metric, &self.data, self.pods);
+        // subtitle (width-adaptive so long pod-name + limit text doesn't clip on
+        // narrow panels)
+        let subtitle = build_subtitle(self.metric, &self.data, self.pods, inner.width);
         if !subtitle.is_empty() && inner.height >= 4 {
             Paragraph::new(Line::from(Span::styled(
                 subtitle,
@@ -232,7 +233,7 @@ fn build_preview(metric: MetricKind, data: &MetricData, pods: &[PodInfo]) -> Str
     }
 }
 
-fn build_subtitle(metric: MetricKind, data: &MetricData, pods: &[PodInfo]) -> String {
+fn build_subtitle(metric: MetricKind, data: &MetricData, pods: &[PodInfo], width: u16) -> String {
     match metric {
         MetricKind::Cpu => {
             let max_now = data.series.iter().find(|s| s.label == "max").map(|s| s.current()).unwrap_or(0.0);
@@ -247,8 +248,11 @@ fn build_subtitle(metric: MetricKind, data: &MetricData, pods: &[PodInfo]) -> St
             format!("{}{}", lines.join("  "), warn)
         }
         MetricKind::Memory => {
-            // Show per-pod "used/limit (pct)" so the user sees headroom at a
-            // glance, not bare GB numbers that ignore the pod's spec.
+            // Two formats: verbose ("pod-a 1.1/2G (55%)") when there's room,
+            // compact ("a 55%·2G") for narrow panels. Threshold is a heuristic
+            // — each verbose entry is ~20 chars including separator.
+            let verbose_width: u16 = pods.len() as u16 * 22;
+            let compact = width > 0 && width < verbose_width;
             let lines: Vec<String> = pods
                 .iter()
                 .map(|p| {
@@ -258,10 +262,17 @@ fn build_subtitle(metric: MetricKind, data: &MetricData, pods: &[PodInfo]) -> St
                         .map(|b| b as f64 / (1024.0 * 1024.0 * 1024.0))
                         .unwrap_or(2.0);
                     let pct = (used_gb / limit_gb * 100.0).min(999.0);
-                    format!("{} {:.1}/{:.0}G ({:.0}%)", p.name, used_gb, limit_gb, pct)
+                    if compact {
+                        // Drop the verbose `used/limit` form; keep pct + limit.
+                        // "a 55%·2G" → 9 chars; 3 pods + separators ≈ 30 chars.
+                        let short = p.name.split('-').last().unwrap_or(&p.name);
+                        format!("{} {:.0}%·{:.0}G", short, pct, limit_gb)
+                    } else {
+                        format!("{} {:.1}/{:.0}G ({:.0}%)", p.name, used_gb, limit_gb, pct)
+                    }
                 })
                 .collect();
-            lines.join("  ")
+            lines.join(if compact { "  " } else { "  " })
         }
         MetricKind::Latency => {
             let p50 = data.series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(50))).map(|s| s.current()).unwrap_or(0.0);
