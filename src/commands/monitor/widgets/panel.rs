@@ -48,7 +48,7 @@ impl<'a> Widget for MetricPanel<'a> {
         };
 
         // ── Title ──
-        let title_spans = build_title(self.metric, &self.data, status, self.focused, self.agg_mode);
+        let title_spans = build_title(self.metric, &self.data, self.pods, status, self.focused, self.agg_mode);
         let mut border_style = Style::default().fg(border_color.to_color());
         // Only ALERT borders are bolded — WARN signals are carried by the title
         // badge and ▲ glyph, not by the frame.
@@ -68,7 +68,7 @@ impl<'a> Widget for MetricPanel<'a> {
         }
 
         // subtitle
-        let subtitle = build_subtitle(self.metric, &self.data);
+        let subtitle = build_subtitle(self.metric, &self.data, self.pods);
         if !subtitle.is_empty() && inner.height >= 4 {
             Paragraph::new(Line::from(Span::styled(
                 subtitle,
@@ -94,6 +94,7 @@ impl<'a> Widget for MetricPanel<'a> {
 fn build_title(
     metric: MetricKind,
     data: &MetricData,
+    pods: &[PodInfo],
     status: HealthStatus,
     _focused: bool,
     agg_mode: AggMode,
@@ -142,7 +143,7 @@ fn build_title(
             .add_modifier(Modifier::BOLD),
     ));
     spans.push(Span::raw("  "));
-    let preview = build_preview(metric, data);
+    let preview = build_preview(metric, data, pods);
     if !preview.is_empty() {
         spans.push(Span::styled(
             preview,
@@ -153,7 +154,7 @@ fn build_title(
     spans
 }
 
-fn build_preview(metric: MetricKind, data: &MetricData) -> String {
+fn build_preview(metric: MetricKind, data: &MetricData, pods: &[PodInfo]) -> String {
     match metric {
         MetricKind::Qps => {
             let total_2xx: f64 = data
@@ -201,13 +202,27 @@ fn build_preview(metric: MetricKind, data: &MetricData) -> String {
             format!("max {:.0}% · avg {:.0}%", max_now, avg_now)
         }
         MetricKind::Memory => {
-            let max_now = data
-                .series
-                .iter()
-                .find(|s| s.label == "max")
-                .map(|s| s.current())
-                .unwrap_or(0.0);
-            format!("max {:.1}G", max_now)
+            // Memory headline: the hottest pod's usage vs its limit, in %.
+            // Bare "max 2.6G" was ambiguous — 2.6 of what? Now reads
+            // "65% of 4G · pod-c" so users see headroom at a glance.
+            let max_pod = pods.iter().max_by(|a, b| a.mem_bytes.cmp(&b.mem_bytes));
+            if let Some(p) = max_pod {
+                let used_gb = p.mem_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+                let limit_gb = p
+                    .mem_limit_bytes
+                    .map(|b| b as f64 / (1024.0 * 1024.0 * 1024.0))
+                    .unwrap_or(used_gb.max(1.0));
+                let pct = (used_gb / limit_gb * 100.0).min(999.0);
+                format!("{:.0}% of {:.0}G · {}", pct, limit_gb, p.name)
+            } else {
+                let max_now = data
+                    .series
+                    .iter()
+                    .find(|s| s.label == "max")
+                    .map(|s| s.current())
+                    .unwrap_or(0.0);
+                format!("max {:.1}G", max_now)
+            }
         }
         MetricKind::Replicas => String::new(),
         MetricKind::Runtime => {
@@ -217,21 +232,36 @@ fn build_preview(metric: MetricKind, data: &MetricData) -> String {
     }
 }
 
-fn build_subtitle(metric: MetricKind, data: &MetricData) -> String {
+fn build_subtitle(metric: MetricKind, data: &MetricData, pods: &[PodInfo]) -> String {
     match metric {
-        MetricKind::Cpu | MetricKind::Memory => {
+        MetricKind::Cpu => {
             let max_now = data.series.iter().find(|s| s.label == "max").map(|s| s.current()).unwrap_or(0.0);
             let avg_now = data.series.iter().find(|s| s.label == "avg").map(|s| s.current()).unwrap_or(0.0);
-            let pods: Vec<String> = data.series
+            let lines: Vec<String> = data.series
                 .iter()
                 .filter(|s| matches!(s.kind, SeriesKind::Pod(_)))
                 .map(|s| format!("{} {}", s.label, format_short_value(s.current(), &data.unit)))
                 .collect();
-            // 20% spread is the on-call rule of thumb — if one pod is >20pp above the
-            // mean, the aggregate hides interesting per-pod behaviour.
             let uneven = (max_now - avg_now).abs() > 20.0;
             let warn = if uneven { "  ⚠ uneven" } else { "" };
-            format!("{}{}", pods.join("  "), warn)
+            format!("{}{}", lines.join("  "), warn)
+        }
+        MetricKind::Memory => {
+            // Show per-pod "used/limit (pct)" so the user sees headroom at a
+            // glance, not bare GB numbers that ignore the pod's spec.
+            let lines: Vec<String> = pods
+                .iter()
+                .map(|p| {
+                    let used_gb = p.mem_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
+                    let limit_gb = p
+                        .mem_limit_bytes
+                        .map(|b| b as f64 / (1024.0 * 1024.0 * 1024.0))
+                        .unwrap_or(2.0);
+                    let pct = (used_gb / limit_gb * 100.0).min(999.0);
+                    format!("{} {:.1}/{:.0}G ({:.0}%)", p.name, used_gb, limit_gb, pct)
+                })
+                .collect();
+            lines.join("  ")
         }
         MetricKind::Latency => {
             let p50 = data.series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(50))).map(|s| s.current()).unwrap_or(0.0);

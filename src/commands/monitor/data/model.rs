@@ -29,6 +29,13 @@ pub struct PodInfo {
     pub last_restart_at: Option<DateTime<Utc>>,
     pub cpu_pct: f64,
     pub mem_bytes: u64,
+    /// Pod's memory limit in bytes (typically 2G for 1C2G, 4G for 2C4G).
+    /// Used by Memory panel to show `% of limit`. Defaults to 2 GiB if absent.
+    #[serde(default)]
+    pub mem_limit_bytes: Option<u64>,
+    /// CPU limit in vCPU units (typically 1 for 1C2G, 2 for 2C4G). Optional.
+    #[serde(default)]
+    pub cpu_limit: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Eq, PartialEq, Hash)]

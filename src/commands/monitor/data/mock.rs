@@ -105,11 +105,24 @@ fn generate(q: &MonitorQuery, seed: u64) -> MonitorResponse {
 }
 
 fn generate_pods(names: &[String], rng: &mut ChaCha8Rng, now: DateTime<Utc>) -> Vec<PodInfo> {
+    // Realistic resource shape:
+    //   pod-a: 1C2G (entry tier, default platform spec)
+    //   pod-b: 1C2G
+    //   pod-c: 2C4G (upgraded, also the unhealthy one with a recent restart)
+    // Memory usage stays well inside the limit on healthy pods, with pod-c
+    // pushing closer to limit because of the load that triggered the restart.
+    let one_gib: f64 = 1024.0 * 1024.0 * 1024.0;
+    let specs = [
+        // (cpu_limit, mem_limit_gb, cpu_usage_pct, mem_usage_gb)
+        (1.0, 2.0, 38.0, 1.10),  // pod-a — 1C2G, idle-ish (55% of mem limit)
+        (1.0, 2.0, 27.0, 1.40),  // pod-b — 1C2G, light load (70% of mem limit)
+        (2.0, 4.0, 68.0, 2.45),  // pod-c — 2C4G, hot pod (61% of mem limit, restart recovering)
+    ];
     names
         .iter()
         .enumerate()
         .map(|(i, n)| {
-            // pod-c is the unhealthy one (used by the rest of the generators too)
+            let (cpu_lim, mem_lim_gb, cpu_pct, mem_gb) = specs[i.min(specs.len() - 1)];
             let restarts = if i == 2 { 1 } else { 0 };
             let last_restart = if restarts > 0 {
                 Some(now - ChronoDuration::minutes(26))
@@ -127,8 +140,10 @@ fn generate_pods(names: &[String], rng: &mut ChaCha8Rng, now: DateTime<Utc>) -> 
                 uptime_seconds: uptime,
                 restarts,
                 last_restart_at: last_restart,
-                cpu_pct: 28.0 + (i as f64) * 13.0 + rng.gen_range(-2.0..2.0),
-                mem_bytes: ((2.0 + (i as f64) * 0.25) * 1024.0 * 1024.0 * 1024.0) as u64,
+                cpu_pct: cpu_pct + rng.gen_range(-2.0..2.0),
+                mem_bytes: (mem_gb * one_gib) as u64,
+                mem_limit_bytes: Some((mem_lim_gb * one_gib) as u64),
+                cpu_limit: Some(cpu_lim),
             }
         })
         .collect()
@@ -423,19 +438,24 @@ fn generate_memory(
     rng: &mut ChaCha8Rng,
 ) -> MetricData {
     let n = times.len();
-    let bases = [2.3, 2.0, 2.5];
+    // GiB usage matching the pod limits in generate_pods:
+    //   pod-a / pod-b are 1C2G → idle around 1.1–1.4 GiB (well under 2G limit)
+    //   pod-c is 2C4G → around 2.1–2.6 GiB, climbs near 3.5 GiB before the
+    //   OOM restart, then settles back to ~1.8 GiB (cold cache after restart).
+    let bases = [1.1_f64, 1.4, 2.2];
     let mut per_pod: Vec<Vec<f64>> = pods
         .iter()
         .enumerate()
-        .map(|(i, _)| smooth_walk(rng, n, bases[i], 0.08, 0.9))
+        .map(|(i, _)| smooth_walk(rng, n, bases[i], 0.04, 0.92))
         .collect();
-    // pod-c grows then drops (after restart at index ~spike_at)
+    // pod-c grows over the window, hits its 4 GiB limit, then OOMKilled →
+    // restart drops it back to ~1.8 GiB and grows slowly.
     let restart_at = (n as f64 * 0.78) as usize;
     for i in 0..restart_at {
-        per_pod[2][i] += (i as f64 / restart_at as f64) * 0.9;
+        per_pod[2][i] += (i as f64 / restart_at as f64) * 1.5; // up to ~3.7 GiB
     }
     for i in restart_at..n {
-        per_pod[2][i] = 1.8 + ((i - restart_at) as f64 * 0.02);
+        per_pod[2][i] = 1.8 + ((i - restart_at) as f64 * 0.015);
     }
 
     let max_curve: Vec<f64> = (0..n)
