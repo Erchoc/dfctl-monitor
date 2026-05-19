@@ -140,10 +140,16 @@ fn dirs_cache_dir() -> std::path::PathBuf {
     std::path::PathBuf::from(".")
 }
 
+// ratatui 0.30 made `Backend::Error` an associated type instead of always
+// io::Error. anyhow needs Send + Sync + 'static on errors to convert into
+// anyhow::Error; the bound is added on the function itself.
 async fn main_loop<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     args: MonitorArgs,
-) -> Result<()> {
+) -> Result<()>
+where
+    B::Error: Send + Sync + 'static,
+{
     let size = terminal.size()?;
     let mut st = AppState::new(args.clone(), (size.width, size.height));
 

@@ -2,7 +2,10 @@ use super::model::*;
 use super::DataSource;
 use anyhow::Result;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use rand::{Rng, SeedableRng};
+// rand 0.10 split the trait: `Rng` is the dyn-safe low-level interface
+// (formerly RngCore), and `RngExt` is the user-level surface that carries
+// `random_range`, `random`, etc.
+use rand::{RngExt, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
 use std::pin::Pin;
@@ -140,7 +143,7 @@ fn generate_pods(names: &[String], rng: &mut ChaCha8Rng, now: DateTime<Utc>) -> 
                 uptime_seconds: uptime,
                 restarts,
                 last_restart_at: last_restart,
-                cpu_pct: cpu_pct + rng.gen_range(-2.0..2.0),
+                cpu_pct: cpu_pct + rng.random_range(-2.0..2.0),
                 mem_bytes: (mem_gb * one_gib) as u64,
                 mem_limit_bytes: Some((mem_lim_gb * one_gib) as u64),
                 cpu_limit: Some(cpu_lim),
@@ -156,7 +159,7 @@ fn smooth_walk(rng: &mut ChaCha8Rng, n: usize, base: f64, vol: f64, momentum: f6
     let mut v = base;
     let mut drift: f64 = 0.0;
     for _ in 0..n {
-        drift = drift * momentum + (rng.gen_range(-vol..vol)) * (1.0 - momentum);
+        drift = drift * momentum + (rng.random_range(-vol..vol)) * (1.0 - momentum);
         v += drift;
         v = (v + base) * 0.5 + drift * 0.5;
         out.push(v);

@@ -12,7 +12,7 @@ name = "dfctl"
 path = "src/main.rs"
 
 [dependencies]
-ratatui = "0.28"
+ratatui = "0.30"
 # crossterm 0.29 brings improved kitty keyboard-protocol fixes — relevant since
 # we filter KeyEventKind::Release for the "needs two taps" bug.
 crossterm = "0.29"
@@ -28,16 +28,12 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
-# rand 0.8 stays — 0.10 dropped `gen_range` in favour of `random_range` and
-# would require rewriting the mock data generators. Not worth it for a
-# deterministic-seed RNG that's already battle-tested.
-rand = "0.8"
-rand_chacha = "0.3"
+rand = "0.10"
+rand_chacha = "0.10"
 figment = { version = "0.10", features = ["toml", "env"] }
 # toml 1.0 — stable API, drop-in upgrade from 0.8.
 toml = "1"
-# dirs 5 kept — 6 reshuffled some Windows paths we don't use, no benefit here.
-dirs = "5"
+dirs = "6"
 
 [profile.release]
 opt-level = 3
