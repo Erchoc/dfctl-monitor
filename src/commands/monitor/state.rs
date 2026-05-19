@@ -147,6 +147,37 @@ impl AppState {
         self.focused_panel = n as usize;
     }
 
+    /// Like `cycle_focus` but stays inside the visible metric set — skips
+    /// optional metrics whose API series is empty. Used by phone-tier pager
+    /// so users never land on a blank "no data" page.
+    pub fn cycle_focus_visible(&mut self, delta: i32) {
+        let order = MetricKind::all_default();
+        let visible: Vec<usize> = order
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| {
+                if !m.is_optional() {
+                    return true;
+                }
+                self.data
+                    .as_ref()
+                    .and_then(|d| d.metrics.get(m))
+                    .map(|md| !md.series.is_empty())
+                    .unwrap_or(false)
+            })
+            .map(|(i, _)| i)
+            .collect();
+        if visible.is_empty() {
+            return;
+        }
+        let cur_pos = visible
+            .iter()
+            .position(|i| *i == self.focused_panel)
+            .unwrap_or(0);
+        let n = (cur_pos as i32 + delta).rem_euclid(visible.len() as i32) as usize;
+        self.focused_panel = visible[n];
+    }
+
     pub fn countdown_seconds(&self) -> Option<u64> {
         if !self.watch_enabled || self.watch_paused {
             return None;

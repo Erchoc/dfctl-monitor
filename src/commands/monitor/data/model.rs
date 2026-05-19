@@ -225,13 +225,15 @@ pub enum EventKind {
 }
 
 impl EventKind {
+    /// Glyphs use only widely-available code points (Geometric Shapes block +
+    /// Latin-1 punctuation). No CJK / Nerd Font fallbacks needed.
     pub fn glyph(&self) -> &'static str {
         match self {
-            EventKind::Restart => "↻",
+            EventKind::Restart => "»",
             EventKind::Deploy => "▲",
             EventKind::AlertFired => "◆",
             EventKind::AlertResolved => "◇",
-            EventKind::ScaleEvent => "⇅",
+            EventKind::ScaleEvent => "↕",
         }
     }
 }

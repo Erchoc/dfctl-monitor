@@ -138,7 +138,9 @@ pub fn handle_key(key: KeyEvent, st: &mut AppState, tier: LayoutTier) -> Action 
             | KeyCode::Char('h')
                 if matches!(tier, LayoutTier::Phone) =>
             {
-                st.cycle_focus(-1)
+                // Phone pager cycles only through visible panels so users
+                // never land on an empty Upstream/Runtime page.
+                st.cycle_focus_visible(-1)
             }
             KeyCode::Down
             | KeyCode::Right
@@ -146,7 +148,7 @@ pub fn handle_key(key: KeyEvent, st: &mut AppState, tier: LayoutTier) -> Action 
             | KeyCode::Char('l')
                 if matches!(tier, LayoutTier::Phone) =>
             {
-                st.cycle_focus(1)
+                st.cycle_focus_visible(1)
             }
             // Desktop tiers: 2D grid movement
             KeyCode::Left | KeyCode::Char('h') => st.move_focus(-1, 0),
