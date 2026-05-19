@@ -76,6 +76,26 @@ dfctl monitor my-service --pod=pod-a,pod-b   # filter to specific pods
 | `?` | Help overlay |
 | `q` / `Ctrl+C` | Quit |
 
+## Panel ordering
+
+The 8 panels are arranged in the order an on-call engineer reads them during
+triage — the layout is intentional, not arbitrary:
+
+| Tier | Panel | Why it's here |
+|------|-------|---------------|
+| **1. RED signals** | QPS by Status | Is traffic flowing? Spikes? Drops? |
+|                    | Latency       | Are users seeing slowness? (P95 headline) |
+|                    | Error Rate    | Are users seeing failures? |
+| **2. Resources**   | CPU Usage     | Pods CPU-throttled? |
+|                    | Memory        | Headroom vs limit? OOM risk? |
+|                    | Replicas      | Pod count, restart events, uptime |
+| **3. Optional**    | Upstream P99  | Dependency latency — needs BaaS gateway |
+|                    | Runtime       | GC / threads / etc. — needs per-language exporter |
+
+Tier 3 panels auto-hide when the API returns no data for them (e.g. the
+platform hasn't wired up Prometheus exporters yet), so the grid never has
+empty boxes. Order is stable across sessions so muscle memory works.
+
 ## Configuration
 
 `dfctl` looks for `~/.config/df/config.toml` (XDG‑aware):

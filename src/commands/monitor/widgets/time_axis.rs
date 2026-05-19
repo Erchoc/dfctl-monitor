@@ -36,15 +36,28 @@ impl Widget for TimeAxis {
                 local.format("%H:%M").to_string()
             };
             let label_w = label.chars().count() as u16;
-            let center = (axis_w as f64 * frac) as u16;
-            let mut x = axis_x + center;
-            let shift = label_w / 2;
-            if x >= axis_x + shift {
-                x -= shift;
-            }
-            if x + label_w > axis_x + axis_w {
-                x = axis_x + axis_w.saturating_sub(label_w);
-            }
+            // Anchor each label by position:
+            //   first  (i == 0)     → flush left at axis_x
+            //   last   (i == n-1)   → flush right at axis_x + axis_w - label_w
+            //   middle              → centred on the tick position
+            // This is what users expect from a Grafana-style chart scale, and
+            // matches the user feedback "左右两个点应该位于两侧".
+            let x = if i == 0 {
+                axis_x
+            } else if i == n - 1 {
+                axis_x + axis_w.saturating_sub(label_w)
+            } else {
+                let center = (axis_w as f64 * frac) as u16;
+                let shift = label_w / 2;
+                let mut x = axis_x + center;
+                if x >= shift {
+                    x = x.saturating_sub(shift);
+                }
+                if x + label_w > axis_x + axis_w {
+                    x = axis_x + axis_w - label_w;
+                }
+                x
+            };
             let span = Span::styled(
                 label,
                 Style::default().fg(TEXT_SECONDARY.to_color()),

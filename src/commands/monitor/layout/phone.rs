@@ -4,6 +4,9 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 pub struct PhoneRects {
     pub header: Rect,
     pub panel: Rect,
+    /// One-row X-axis time scale below the panel, so phone users see the same
+    /// time window evidence as desktop.
+    pub time_axis: Rect,
     pub indicator: Rect,
     pub footer: Rect,
 }
@@ -12,16 +15,18 @@ pub fn compute_phone(area: Rect) -> PhoneRects {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
-            Constraint::Min(10),
-            Constraint::Length(2),
-            Constraint::Length(1),
+            Constraint::Length(1), // header
+            Constraint::Min(8),    // panel
+            Constraint::Length(1), // X-axis time scale
+            Constraint::Length(2), // dot indicator (dots + numbers)
+            Constraint::Length(1), // footer
         ])
         .split(area);
     PhoneRects {
         header: vertical[0],
         panel: vertical[1],
-        indicator: vertical[2],
-        footer: vertical[3],
+        time_axis: vertical[2],
+        indicator: vertical[3],
+        footer: vertical[4],
     }
 }

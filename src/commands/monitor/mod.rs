@@ -150,6 +150,25 @@ async fn main_loop<B: ratatui::backend::Backend>(
     let source = Arc::new(data::mock::MockDataSource::default());
     let (tx, mut rx) = mpsc::unbounded_channel::<FetchResult>();
 
+    // Dedicated input thread: `crossterm::event::read` is a blocking call, and
+    // we want zero latency between keystroke and state update. Earlier we used
+    // `tokio::task::spawn_blocking` per loop iteration which added ~100 ms of
+    // scheduling overhead — user perception was "needed two taps". A plain
+    // std::thread pushing into a tokio channel is both simpler and faster.
+    let (key_tx, mut key_rx) = mpsc::unbounded_channel::<CtEvent>();
+    std::thread::Builder::new()
+        .name("dfctl-input".into())
+        .spawn(move || loop {
+            match ct_event::read() {
+                Ok(evt) => {
+                    if key_tx.send(evt).is_err() {
+                        break; // main loop dropped the receiver — shutting down
+                    }
+                }
+                Err(_) => break,
+            }
+        })?;
+
     spawn_fetch(source.clone(), st.clone_for_query(), tx.clone());
     st.fetch_in_flight = true;
 
@@ -191,10 +210,11 @@ async fn main_loop<B: ratatui::backend::Backend>(
         })?;
 
         tokio::select! {
-            _ = tick.tick() => {}
-            _ = second_tick.tick() => {}
-            evt = read_event() => {
-                if let Some(CtEvent::Key(k)) = evt {
+            // biased: prefer keystrokes over redraw ticks so input never has to
+            // wait for the next 33 ms frame to be processed.
+            biased;
+            Some(evt) = key_rx.recv() => {
+                if let CtEvent::Key(k) = evt {
                     // crossterm sends Press, Release and Repeat events when the host
                     // terminal speaks kitty keyboard protocol (Termius, WezTerm, recent
                     // iTerm). Accept Press *and* Repeat so holding an arrow key still
@@ -235,22 +255,11 @@ async fn main_loop<B: ratatui::backend::Backend>(
                     }
                 }
             }
+            _ = tick.tick() => {}
+            _ = second_tick.tick() => {}
         }
     }
     Ok(())
-}
-
-async fn read_event() -> Option<CtEvent> {
-    tokio::task::spawn_blocking(|| {
-        if ct_event::poll(Duration::from_millis(50)).ok()? {
-            ct_event::read().ok()
-        } else {
-            None
-        }
-    })
-    .await
-    .ok()
-    .flatten()
 }
 
 enum FetchResult {

@@ -65,19 +65,38 @@ impl MetricKind {
         }
     }
 
-    /// Default panel order, by real on-call value:
-    /// 1. QPS / Latency / Error Rate — RED metrics, always present
-    /// 2. CPU / Memory / Replicas    — resources + cluster shape, platform-supplied
-    /// 3. Upstream / Runtime          — optional; depend on BaaS gateway and
-    ///    per-language Prometheus exporters respectively. If no data, hide.
+    /// Default panel order. Read top-to-bottom, left-to-right this is the
+    /// triage sequence a real on-call engineer follows when a page fires:
+    ///
+    /// **Tier 1 — RED signals (always present, user-facing health):**
+    /// 1. `Qps`        — Is traffic flowing? Did it spike or drop?
+    /// 2. `Latency`    — Are users seeing slowness? (P95 headline)
+    /// 3. `ErrorRate`  — Are users seeing failures? (% 4xx+5xx)
+    ///
+    /// **Tier 2 — Resources (always present, cluster shape):**
+    /// 4. `Cpu`        — Are pods CPU-throttled?
+    /// 5. `Memory`     — Headroom vs limit? OOM risk?
+    /// 6. `Replicas`   — Pod count, restart events, uptime — physical health.
+    ///
+    /// **Tier 3 — Optional (depend on data sources that may be missing):**
+    /// 7. `Upstream`   — Dependency latency, only via BaaS gateway integration.
+    /// 8. `Runtime`    — GC / threads / etc., only via per-language Prometheus
+    ///                   exporter. Hidden when the API returns no data.
+    ///
+    /// `is_optional()` returns true for Tier 3 panels; the renderer auto-hides
+    /// them when their series is empty. The order is intentionally stable so
+    /// users build muscle memory for "where is X in the grid".
     pub fn all_default() -> Vec<MetricKind> {
         vec![
+            // Tier 1: RED signals
             MetricKind::Qps,
             MetricKind::Latency,
             MetricKind::ErrorRate,
+            // Tier 2: Resources
             MetricKind::Cpu,
             MetricKind::Memory,
             MetricKind::Replicas,
+            // Tier 3: Optional
             MetricKind::Upstream,
             MetricKind::Runtime,
         ]

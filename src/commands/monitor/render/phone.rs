@@ -69,6 +69,15 @@ pub fn draw_phone(area: Rect, buf: &mut Buffer, st: &AppState) {
     let thresholds = md_opt.and_then(|m| m.thresholds.as_ref());
     let status_color =
         theme::assess_health_with_thresholds(metric, series_slice, thresholds).color();
+    // X-axis time scale between the panel and the dot indicator. Mirrors the
+    // desktop overview so users see which window they're in without opening
+    // the detail view.
+    widgets::time_axis::TimeAxis {
+        from: data.time_range.from,
+        to: data.time_range.to,
+        align_x_offset: 4, // narrow Y-axis gutter on phone tier
+    }
+    .render(rects.time_axis, buf);
     widgets::dot_indicator::DotIndicator {
         count: order.len(),
         current: idx,
