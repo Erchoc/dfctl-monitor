@@ -202,6 +202,32 @@ pub fn derive_avg(md: &MetricData, metric: MetricKind) -> (f64, String) {
 }
 
 pub fn derive_peak(md: &MetricData) -> (f64, String) {
+    // For status-coded metrics (QPS), peak is the worst point of TOTAL traffic
+    // — summing all status codes per timestamp. Otherwise PEAK 31/s would
+    // appear under CURRENT 34/s (total), which is reverse-intuitive.
+    let status_only: Vec<&Series> = md
+        .series
+        .iter()
+        .filter(|s| matches!(s.kind, SeriesKind::StatusCode(_)))
+        .collect();
+    if !status_only.is_empty() {
+        let n_points = status_only[0].points.len();
+        let mut peak = 0.0_f64;
+        let mut when = String::new();
+        for i in 0..n_points {
+            let total: f64 = status_only.iter().map(|s| s.points[i].1).sum();
+            if total > peak {
+                peak = total;
+                when = status_only[0].points[i]
+                    .0
+                    .with_timezone(&chrono::Local)
+                    .format("%H:%M:%S")
+                    .to_string();
+            }
+        }
+        return (peak, format!("total · {}", when));
+    }
+    // Default: scan every series for the absolute max.
     let mut peak = 0.0_f64;
     let mut who = String::new();
     let mut when = String::new();
