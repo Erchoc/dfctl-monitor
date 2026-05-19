@@ -37,11 +37,26 @@ pub fn draw_overview(area: Rect, buf: &mut Buffer, st: &AppState, tier: LayoutTi
             return;
         }
     };
+    // Filter optional metrics (Upstream/Runtime) with no data — they depend on
+    // BaaS gateway / per-language Prometheus exporters that may not be wired up.
+    let visible: Vec<MetricKind> = order
+        .iter()
+        .copied()
+        .filter(|m| {
+            if !m.is_optional() {
+                return true;
+            }
+            data.metrics
+                .get(m)
+                .map(|md| !md.series.is_empty())
+                .unwrap_or(false)
+        })
+        .collect();
     for (i, panel) in rects.panels.iter().enumerate() {
-        if i >= order.len() {
+        if i >= visible.len() {
             break;
         }
-        let metric = order[i];
+        let metric = visible[i];
         if let Some(md) = data.metrics.get(&metric) {
             widgets::panel::MetricPanel {
                 metric,
@@ -62,6 +77,17 @@ pub fn draw_overview(area: Rect, buf: &mut Buffer, st: &AppState, tier: LayoutTi
             events: &data.events,
         }
         .render(sidebar, buf);
+    }
+
+    // X-axis time scale under the panels — makes it obvious which window the
+    // user is looking at and confirms range picker changed the query.
+    if let Some(axis) = rects.time_axis {
+        widgets::time_axis::TimeAxis {
+            from: data.time_range.from,
+            to: data.time_range.to,
+            align_x_offset: 6, // skip Y-axis gutter inside each panel
+        }
+        .render(axis, buf);
     }
 
     widgets::footer::Footer { state: st }.render(rects.footer, buf);

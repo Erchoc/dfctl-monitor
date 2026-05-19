@@ -1,7 +1,7 @@
 use crate::commands::monitor::data::*;
 use crate::commands::monitor::render::colors::*;
 use crate::commands::monitor::state::AggMode;
-use crate::commands::monitor::theme::{assess_health, series_color, HealthStatus};
+use crate::commands::monitor::theme::{assess_health_with_thresholds, series_color, HealthStatus};
 use crate::commands::monitor::widgets::chart::{format_traffic, AreaChart, AreaSeries};
 use crate::commands::monitor::widgets::replicas::ReplicasTable;
 use crate::commands::monitor::widgets::stacked_bar::{StackedBar, StackedSeries, TrafficDisplay};
@@ -27,7 +27,11 @@ impl<'a> Widget for MetricPanel<'a> {
         if area.width < 10 || area.height < 3 {
             return;
         }
-        let status = assess_health(self.metric, &self.data.series);
+        let status = assess_health_with_thresholds(
+            self.metric,
+            &self.data.series,
+            self.data.thresholds.as_ref(),
+        );
         // Border presentation rules:
         //   focused                  → Double border, accent_ok colour (full attention)
         //   ALERT (regardless focus) → Thick border, alert red (must-see)
@@ -241,9 +245,14 @@ fn build_subtitle(metric: MetricKind, data: &MetricData) -> String {
         }
         MetricKind::Qps => {
             let cur_2xx = data.series.iter().find(|s| matches!(s.kind, SeriesKind::StatusCode(c) if (200..300).contains(&c))).map(|s| s.current()).unwrap_or(0.0);
+            let cur_3xx = data.series.iter().find(|s| matches!(s.kind, SeriesKind::StatusCode(c) if (300..400).contains(&c))).map(|s| s.current()).unwrap_or(0.0);
             let cur_4xx = data.series.iter().find(|s| matches!(s.kind, SeriesKind::StatusCode(c) if (400..500).contains(&c))).map(|s| s.current()).unwrap_or(0.0);
             let cur_5xx = data.series.iter().find(|s| matches!(s.kind, SeriesKind::StatusCode(c) if c >= 500)).map(|s| s.current()).unwrap_or(0.0);
-            format!("2xx {}  4xx {}  5xx {}", format_traffic(cur_2xx), format_traffic(cur_4xx), format_traffic(cur_5xx))
+            if cur_3xx > 0.1 {
+                format!("2xx {}  3xx {}  4xx {}  5xx {}", format_traffic(cur_2xx), format_traffic(cur_3xx), format_traffic(cur_4xx), format_traffic(cur_5xx))
+            } else {
+                format!("2xx {}  4xx {}  5xx {}", format_traffic(cur_2xx), format_traffic(cur_4xx), format_traffic(cur_5xx))
+            }
         }
         MetricKind::ErrorRate => {
             data.series.first().map(|s| {

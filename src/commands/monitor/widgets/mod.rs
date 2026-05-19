@@ -12,4 +12,5 @@ pub mod range_picker;
 pub mod replicas;
 pub mod sparkline;
 pub mod stacked_bar;
+pub mod time_axis;
 pub mod too_small;

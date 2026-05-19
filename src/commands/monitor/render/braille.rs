@@ -78,6 +78,7 @@ impl Canvas {
     }
 
     /// Draw a line in pixel coordinates between two points (Bresenham).
+    #[allow(dead_code)] // kept for callers that need diagonal connections
     pub fn line_px(
         &mut self,
         x0: i32,

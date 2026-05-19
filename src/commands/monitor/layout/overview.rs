@@ -5,6 +5,7 @@ pub struct OverviewRects {
     pub header: Rect,
     pub panels: Vec<Rect>, // 8
     pub sidebar: Option<Rect>,
+    pub time_axis: Option<Rect>,
     pub footer: Rect,
 }
 
@@ -13,16 +14,17 @@ pub fn compute_two_by_four(area: Rect, _large: bool, sidebar: bool) -> OverviewR
     let vertical = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Min(10),
-            Constraint::Length(1),
-            Constraint::Length(1),
+            Constraint::Length(1), // header
+            Constraint::Length(1), // gutter
+            Constraint::Min(10),   // body (8 panels)
+            Constraint::Length(1), // X axis time scale
+            Constraint::Length(1), // gutter
+            Constraint::Length(1), // footer
         ])
         .split(total);
     let header = vertical[0];
     let body = vertical[2];
-    let footer = vertical[4];
+    let footer = vertical[5];
 
     let (main, side) = if sidebar {
         let h = Layout::default()
@@ -57,6 +59,7 @@ pub fn compute_two_by_four(area: Rect, _large: bool, sidebar: bool) -> OverviewR
         header,
         panels,
         sidebar: side,
+        time_axis: Some(vertical[3]),
         footer,
     }
 }
@@ -95,6 +98,7 @@ pub fn compute_single_column(area: Rect) -> OverviewRects {
         header,
         panels: rows.iter().copied().collect(),
         sidebar: None,
+        time_axis: None,
         footer,
     }
 }

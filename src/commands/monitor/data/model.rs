@@ -58,17 +58,28 @@ impl MetricKind {
         }
     }
 
+    /// Default panel order, by real on-call value:
+    /// 1. QPS / Latency / Error Rate — RED metrics, always present
+    /// 2. CPU / Memory / Replicas    — resources + cluster shape, platform-supplied
+    /// 3. Upstream / Runtime          — optional; depend on BaaS gateway and
+    ///    per-language Prometheus exporters respectively. If no data, hide.
     pub fn all_default() -> Vec<MetricKind> {
         vec![
             MetricKind::Qps,
             MetricKind::Latency,
             MetricKind::ErrorRate,
-            MetricKind::Upstream,
             MetricKind::Cpu,
             MetricKind::Memory,
             MetricKind::Replicas,
+            MetricKind::Upstream,
             MetricKind::Runtime,
         ]
+    }
+
+    /// Metrics that depend on optional data sources (BaaS gateway / per-language
+    /// Prometheus exporter). Hidden automatically if the API returns no series.
+    pub fn is_optional(&self) -> bool {
+        matches!(self, MetricKind::Upstream | MetricKind::Runtime)
     }
 
     pub fn from_str(s: &str) -> Option<Self> {
@@ -90,6 +101,26 @@ impl MetricKind {
 pub struct MetricData {
     pub unit: String,
     pub series: Vec<Series>,
+    /// Per-metric warn / alert thresholds delivered by the API. If absent, the
+    /// front-end falls back to sensible defaults from `theme::assess_health`.
+    /// The platform team owns these — they reflect SLO contracts, not UI policy.
+    #[serde(default)]
+    pub thresholds: Option<Thresholds>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Thresholds {
+    /// Watch this aggregation (e.g. P99 for latency, max for cpu, current for
+    /// error_rate). If `None`, the front-end picks a metric-appropriate default.
+    #[serde(default)]
+    pub watch_series: Option<String>,
+    /// Threshold above which the panel turns WARN. Compared against `watch_series`
+    /// current value.
+    #[serde(default)]
+    pub warn_above: Option<f64>,
+    /// Threshold above which the panel turns ALERT.
+    #[serde(default)]
+    pub alert_above: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

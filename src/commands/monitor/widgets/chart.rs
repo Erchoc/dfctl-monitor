@@ -259,12 +259,26 @@ impl<'a> Widget for AreaChart<'a> {
                     }
                 }
 
-                // edge line — 2 px thick so flat segments render as full Braille cells,
-                // not aliased mosaics.
-                if let Some((px, py)) = prev {
-                    canvas.line_px(px, py, x as i32, y_px, edge_color, z + 64);
-                    canvas.line_px(px, py + 1, x as i32, y_px + 1, edge_color, z + 64);
+                // Edge line — 2 px thick. Between adjacent X columns, when the curve
+                // jumps vertically by more than 1 px, we explicitly fill every pixel
+                // along the rise/fall so the line reads as continuous instead of as
+                // a scatter of dots ("点状聚合" complaint).
+                if let Some((_, py)) = prev {
+                    let (lo, hi) = if py <= y_px { (py, y_px) } else { (y_px, py) };
+                    // Fill all pixels in the [lo, hi] range at column x and column x-1
+                    // so the line never has a gap, regardless of slope.
+                    for fill_y in lo..=hi {
+                        if fill_y < 0 || (fill_y as usize) >= px_h {
+                            continue;
+                        }
+                        canvas.set_px(x, fill_y as usize, edge_color, z + 64);
+                        if x > 0 {
+                            canvas.set_px(x - 1, fill_y as usize, edge_color, z + 64);
+                        }
+                    }
                 }
+                // Always lay down a 2-px-thick dot at the resampled position so flat
+                // segments still produce full Braille cells.
                 canvas.set_px(x, y_px as usize, edge_color, z + 64);
                 if (y_px as usize) + 1 < px_h {
                     canvas.set_px(x, (y_px as usize) + 1, edge_color, z + 64);

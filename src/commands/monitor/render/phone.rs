@@ -44,9 +44,12 @@ pub fn draw_phone(area: Rect, buf: &mut Buffer, st: &AppState) {
         }
         .render(rects.panel, buf);
     }
+    let md_opt = data.metrics.get(&metric);
     let series_slice: &[crate::commands::monitor::data::Series] =
-        data.metrics.get(&metric).map(|m| m.series.as_slice()).unwrap_or(&[]);
-    let status_color = theme::assess_health(metric, series_slice).color();
+        md_opt.map(|m| m.series.as_slice()).unwrap_or(&[]);
+    let thresholds = md_opt.and_then(|m| m.thresholds.as_ref());
+    let status_color =
+        theme::assess_health_with_thresholds(metric, series_slice, thresholds).color();
     widgets::dot_indicator::DotIndicator {
         count: order.len(),
         current: idx,
@@ -98,7 +101,7 @@ pub fn draw_single_phone(area: Rect, buf: &mut Buffer, st: &AppState, metric: Me
         Some(m) => m,
         None => return,
     };
-    let status = theme::assess_health(metric, &md.series);
+    let status = theme::assess_health_with_thresholds(metric, &md.series, md.thresholds.as_ref());
     let title_line = Line::from(vec![
         Span::styled(
             "❯ ",

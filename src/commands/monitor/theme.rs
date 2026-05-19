@@ -67,6 +67,42 @@ pub fn series_color(metric: MetricKind, series: &Series) -> Rgb {
 }
 
 
+/// Evaluate panel health.
+///
+/// API-supplied `thresholds` (from `MetricData::thresholds`) always win. If
+/// none are provided, fall back to built-in defaults so the front-end still
+/// shows *some* badge — but those defaults are conservative and the platform
+/// team should always send real thresholds with the data.
+pub fn assess_health_with_thresholds(
+    metric: MetricKind,
+    series: &[Series],
+    thresholds: Option<&crate::commands::monitor::data::Thresholds>,
+) -> HealthStatus {
+    if let Some(t) = thresholds {
+        let probe = t
+            .watch_series
+            .as_deref()
+            .and_then(|name| series.iter().find(|s| s.label == name))
+            .or_else(|| series.iter().find(|s| !matches!(s.kind, crate::commands::monitor::data::SeriesKind::Pod(_))))
+            .or_else(|| series.first());
+        if let Some(s) = probe {
+            let v = s.current();
+            if let Some(at) = t.alert_above {
+                if v > at {
+                    return HealthStatus::Alert;
+                }
+            }
+            if let Some(wt) = t.warn_above {
+                if v > wt {
+                    return HealthStatus::Warn;
+                }
+            }
+            return HealthStatus::Ok;
+        }
+    }
+    assess_health(metric, series)
+}
+
 pub fn assess_health(metric: MetricKind, series: &[Series]) -> HealthStatus {
     match metric {
         MetricKind::ErrorRate => {

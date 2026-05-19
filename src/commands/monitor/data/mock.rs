@@ -83,6 +83,7 @@ fn generate(q: &MonitorQuery, seed: u64) -> MonitorResponse {
         MetricData {
             unit: "pods".into(),
             series: vec![],
+            thresholds: None,
         },
     );
 
@@ -169,13 +170,14 @@ fn generate_qps(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricData {
     let n = times.len();
     let spike_at = (n as f64 * 0.78) as usize; // around event window
 
-    // baseline tuned so 5xx + 4xx spike is visually obvious in the stacked chart
+    // Realistic HTTP status distribution: 2xx dominant, 3xx redirects (auth/static),
+    // 4xx steady (bot scans, expected client errors), 5xx tiny except during incident.
     let mut s2xx = smooth_walk(rng, n, 1800.0, 90.0, 0.88);
+    let s3xx = smooth_walk(rng, n, 145.0, 22.0, 0.80);
     let mut s4xx = smooth_walk(rng, n, 85.0, 15.0, 0.75);
     let mut s5xx = smooth_walk(rng, n, 10.0, 3.0, 0.65);
 
-    // big spike during incident — 5xx + 4xx together approach the 2xx baseline so the
-    // stacked bar visibly bulges upward
+    // big spike during incident
     add_spike(&mut s5xx, spike_at, 950.0, 9);
     add_spike(&mut s4xx, spike_at, 420.0, 9);
     // 2xx dips during incident
@@ -201,6 +203,7 @@ fn generate_qps(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricData {
 
     MetricData {
         unit: "rpm".into(),
+        thresholds: None, // QPS has no inherent threshold; use Error Rate / Latency instead
         series: vec![
             Series {
                 label: "2xx".into(),
@@ -208,6 +211,13 @@ fn generate_qps(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricData {
                 aggregation: Aggregation::Sum,
                 across_pods: true,
                 points: pair(times, s2xx),
+            },
+            Series {
+                label: "3xx".into(),
+                kind: SeriesKind::StatusCode(300),
+                aggregation: Aggregation::Sum,
+                across_pods: true,
+                points: pair(times, s3xx),
             },
             Series {
                 label: "4xx".into(),
@@ -243,6 +253,14 @@ fn generate_latency(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricData
 
     MetricData {
         unit: "ms".into(),
+        // Platform owns the SLO; here we use P95 as the headline (less alarmist
+        // than P99) and pin thresholds to the contractual numbers. CLI will
+        // colour the panel based on these — no client-side magic.
+        thresholds: Some(Thresholds {
+            watch_series: Some("P95".into()),
+            warn_above: Some(120.0),
+            alert_above: Some(200.0),
+        }),
         series: vec![
             Series {
                 label: "P50".into(),
@@ -279,6 +297,11 @@ fn generate_error_rate(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricD
     }
     MetricData {
         unit: "%".into(),
+        thresholds: Some(Thresholds {
+            watch_series: Some("error rate".into()),
+            warn_above: Some(1.0),
+            alert_above: Some(5.0),
+        }),
         series: vec![Series {
             label: "error rate".into(),
             kind: SeriesKind::Single,
@@ -300,6 +323,7 @@ fn generate_upstream(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricDat
 
     MetricData {
         unit: "ms".into(),
+        thresholds: None,
         series: vec![
             Series {
                 label: "HSF".into(),
@@ -384,6 +408,11 @@ fn generate_cpu(
     }
     MetricData {
         unit: "%".into(),
+        thresholds: Some(Thresholds {
+            watch_series: Some("max".into()),
+            warn_above: Some(70.0),
+            alert_above: Some(85.0),
+        }),
         series,
     }
 }
@@ -443,6 +472,7 @@ fn generate_memory(
     }
     MetricData {
         unit: "GB".into(),
+        thresholds: None, // Memory has no abstract threshold; use per-pod-vs-limit ratio when available
         series,
     }
 }
@@ -457,6 +487,7 @@ fn generate_runtime(times: &[DateTime<Utc>], rng: &mut ChaCha8Rng) -> MetricData
 
     MetricData {
         unit: "ms".into(),
+        thresholds: None,
         series: vec![
             Series {
                 label: "GC pause (ms)".into(),
