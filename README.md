@@ -8,6 +8,8 @@ It also speaks JSON so an AI agent can read what you're looking at.
 
 ![overview](docs/screenshots/overview.png)
 
+📖 **Documentation**: <https://docs.dfctl.com/cli/monitor>
+
 ## Highlights
 
 - **8 default panels, btop‑grade rendering** — Braille area charts with edge + glow, stacked bar QPS chart, percentile lines, replica table.
@@ -144,6 +146,13 @@ struct MonitorResponse {
 ## Acknowledgements
 
 Built on top of [ratatui](https://github.com/ratatui/ratatui), [crossterm](https://github.com/crossterm-rs/crossterm), [tokio](https://github.com/tokio-rs/tokio), [clap](https://github.com/clap-rs/clap), [serde](https://github.com/serde-rs/serde), and [chrono](https://github.com/chronotope/chrono). Design inspiration from `btop`, `k9s`, and Grafana.
+
+## More
+
+- 📖 Docs: <https://docs.dfctl.com/cli/monitor>
+- 🐛 Issues: <https://github.com/erchoc/dfctl-monitor/issues>
+- 🏗 Roadmap: see `Roadmap` section above
+- 🤝 Contributing: PRs welcome — fork, branch, PR against `main`
 
 ## License
 

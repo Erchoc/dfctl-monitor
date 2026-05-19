@@ -5,42 +5,123 @@ use crate::commands::monitor::layout::single::compute_single;
 use crate::commands::monitor::state::AppState;
 use crate::commands::monitor::theme;
 use crate::commands::monitor::widgets;
+use crate::commands::monitor::widgets::pod_card::PodCardReason;
 
 const OUTLIER_SIGMA: f64 = 1.5;
 const RESTART_GRACE_SECONDS: u64 = 3600;
+/// Below this pod count, show every pod with a full card (small-cluster mode).
+const SMALL_CLUSTER_THRESHOLD: usize = 3;
+/// At and below this count, show outliers + named summary of the calm pods.
+const MEDIUM_CLUSTER_THRESHOLD: usize = 10;
 
-/// Pick the pods whose current value stands out from peers, plus pods that have
-/// known anomalies (recent restart, crashing state). Returns at most a handful,
-/// sorted by z-score descending.
-fn select_outlier_pods<'a>(
-    pods: &'a [(&'a PodInfo, Option<&'a Series>)],
-) -> Vec<(&'a PodInfo, Option<&'a Series>, f64)> {
-    // Always surface pods that aren't Running, regardless of metric numbers.
-    let mut sick: Vec<(&PodInfo, Option<&Series>, f64)> = pods
-        .iter()
-        .filter(|(p, _)| p.status != "Running" || p.restarts > 0 && p.uptime_seconds < RESTART_GRACE_SECONDS)
-        .map(|(p, s)| (*p, *s, f64::INFINITY))
-        .collect();
+#[derive(Debug)]
+struct SidebarEntry<'a> {
+    pod: &'a PodInfo,
+    series: Option<&'a Series>,
+    reason: PodCardReason,
+    /// Z-score vs peers (used for sort order). NaN means "unhealthy", which
+    /// always wins over numeric outliers.
+    z: f64,
+}
 
-    // Then surface metric outliers based on z-score across peers.
-    let values: Vec<f64> = pods.iter().filter_map(|(_, s)| s.map(|s| s.current())).collect();
-    if values.len() >= 2 {
-        let mean = values.iter().sum::<f64>() / values.len() as f64;
-        let var = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
-        let std = var.sqrt();
-        if std > 1e-6 {
-            for (p, s) in pods {
-                if let Some(series) = s {
-                    let z = (series.current() - mean) / std;
-                    if z.abs() >= OUTLIER_SIGMA && !sick.iter().any(|(ep, _, _)| ep.name == p.name) {
-                        sick.push((p, *s, z));
-                    }
+/// Decide what to render in the detail-view sidebar based on cluster size.
+///
+/// - 1–3 pods (small cluster): every pod gets a card with reason=Routine,
+///   so the sidebar is never empty even when the metric has no per-pod data.
+/// - 4–10 pods (medium): outliers get cards, the rest are summarised as
+///   "+N pods within tolerance".
+/// - 11+ pods (large): only outliers, plus a count of healthy peers.
+///
+/// User feedback: 1-10 实例效果要好, 详情页不能空白也不能突兀; 10+ 不需要太详细。
+fn plan_sidebar<'a>(
+    pods: &'a [PodInfo],
+    series_of: impl Fn(&PodInfo) -> Option<&'a Series>,
+) -> (Vec<SidebarEntry<'a>>, SidebarSummary) {
+    let mut entries: Vec<SidebarEntry> = Vec::new();
+    let total = pods.len();
+
+    // ── compute z-scores once for the whole list ──
+    let metric_values: Vec<f64> = pods.iter().filter_map(&series_of).map(|s| s.current()).collect();
+    let (mean, std) = if metric_values.len() >= 2 {
+        let mean = metric_values.iter().sum::<f64>() / metric_values.len() as f64;
+        let var = metric_values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / metric_values.len() as f64;
+        (mean, var.sqrt())
+    } else {
+        (0.0, 0.0)
+    };
+
+    let unhealthy = |p: &PodInfo| {
+        p.status != "Running"
+            || (p.restarts > 0 && p.uptime_seconds < RESTART_GRACE_SECONDS)
+    };
+
+    // Small cluster: surface every pod with a routine card.
+    if total <= SMALL_CLUSTER_THRESHOLD {
+        for p in pods {
+            let s = series_of(p);
+            let reason = if unhealthy(p) {
+                PodCardReason::Unhealthy
+            } else {
+                PodCardReason::Routine
+            };
+            let z = if let Some(series) = s {
+                if std > 1e-6 { (series.current() - mean) / std } else { 0.0 }
+            } else {
+                0.0
+            };
+            entries.push(SidebarEntry { pod: p, series: s, reason, z });
+        }
+        return (entries, SidebarSummary::All { total });
+    }
+
+    // Medium/large: pick outliers + unhealthy pods.
+    let mut outlier_count = 0;
+    for p in pods {
+        let s = series_of(p);
+        let mut chosen: Option<PodCardReason> = None;
+        if unhealthy(p) {
+            chosen = Some(PodCardReason::Unhealthy);
+        } else if let Some(series) = s {
+            if std > 1e-6 {
+                let z = (series.current() - mean) / std;
+                if z >= OUTLIER_SIGMA {
+                    chosen = Some(PodCardReason::OutlierHigh);
+                } else if z <= -OUTLIER_SIGMA {
+                    chosen = Some(PodCardReason::OutlierLow);
                 }
             }
         }
+        if let Some(reason) = chosen {
+            outlier_count += 1;
+            let z = if matches!(reason, PodCardReason::Unhealthy) {
+                f64::INFINITY
+            } else if let Some(series) = s {
+                if std > 1e-6 { (series.current() - mean) / std } else { 0.0 }
+            } else {
+                0.0
+            };
+            entries.push(SidebarEntry { pod: p, series: s, reason, z });
+        }
     }
-    sick.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
-    sick
+
+    entries.sort_by(|a, b| b.z.abs().partial_cmp(&a.z.abs()).unwrap_or(std::cmp::Ordering::Equal));
+    let calm = total - outlier_count;
+    let summary = if total <= MEDIUM_CLUSTER_THRESHOLD {
+        SidebarSummary::MediumCluster { calm, total }
+    } else {
+        SidebarSummary::LargeCluster { calm, total }
+    };
+    (entries, summary)
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SidebarSummary {
+    /// Every pod is shown; no summary needed.
+    All { total: usize },
+    /// Medium cluster (4–10): outliers shown, calm pods summarised by name count.
+    MediumCluster { calm: usize, total: usize },
+    /// Large cluster (10+): only outliers, brief summary at the bottom.
+    LargeCluster { calm: usize, total: usize },
 }
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -141,91 +222,143 @@ pub fn draw_single(area: Rect, buf: &mut Buffer, st: &AppState, metric: MetricKi
     chart_block.render(rects.chart, buf);
     render_single_chart(metric, md, chart_inner, buf, Some((data.time_range.from, data.time_range.to)));
 
-    // ── Sidebar: pod cards on a need-to-show basis ──
+    // ── Sidebar: pods, sized by cluster scale ──
     //
-    // Showing every pod in the sidebar is noise when the load is balanced
-    // (the user's words: "正常都是负载均衡分摊流量的"). Only render a pod card
-    // when that pod's current value stands out from its peers (outlier rule),
-    // or when the pod itself has anomalies (restarted, crashing).
-    //
-    // The list is sorted by deviation desc, then truncated to the sidebar's
-    // available slot count → automatic "top-N anomalies" pagination.
-    let pod_series: Vec<(&PodInfo, Option<&Series>)> = data
-        .pods
-        .iter()
-        .map(|pod| {
-            let s = md
-                .series
-                .iter()
-                .find(|s| matches!(&s.kind, SeriesKind::Pod(n) if n == &pod.name));
-            (pod, s)
-        })
-        .collect();
+    // Small (1–3): every pod has a full card with PodInfo fields visible even
+    // when the metric has no per-pod series.
+    // Medium (4–10): outliers + a one-line "+N pods within tolerance" summary.
+    // Large (11+): only outliers, plus an overflow count.
+    let (entries, summary) = plan_sidebar(&data.pods, |p| {
+        md.series
+            .iter()
+            .find(|s| matches!(&s.kind, SeriesKind::Pod(n) if n == &p.name))
+    });
 
-    let anomalies = select_outlier_pods(&pod_series);
-    if anomalies.is_empty() {
-        // All pods within tolerance — say so, don't pad the sidebar with empty cards.
-        let line = Line::from(vec![
-            Span::styled("◉ ", Style::default().fg(ACCENT_OK.to_color())),
-            Span::styled(
-                "All pods within tolerance",
-                Style::default()
-                    .fg(TEXT_PRIMARY.to_color())
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ]);
-        Paragraph::new(line).render(
-            Rect::new(rects.sidebar.x, rects.sidebar.y, rects.sidebar.width, 1),
-            buf,
-        );
-        let sub = Line::from(vec![Span::styled(
-            format!(
-                "  {} pods, max−avg drift < {}σ",
-                data.pods.len(),
-                OUTLIER_SIGMA
-            ),
-            Style::default().fg(TEXT_SECONDARY.to_color()),
-        )]);
-        Paragraph::new(sub).render(
-            Rect::new(rects.sidebar.x, rects.sidebar.y + 1, rects.sidebar.width, 1),
-            buf,
-        );
-    } else {
-        let visible = anomalies.iter().take(3).count().max(1);
-        let pod_rects = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Ratio(1, visible as u32); visible])
-            .split(rects.sidebar);
-        for (slot, (pod, series, _z)) in anomalies.iter().take(3).enumerate() {
-            if slot >= pod_rects.len() {
-                break;
-            }
-            widgets::pod_card::PodCard {
-                pod,
-                series: *series,
-                unit: &md.unit,
-            }
-            .render(pod_rects[slot], buf);
-        }
-        // If there are more outliers than slots, hint at the overflow.
-        if anomalies.len() > 3 {
-            let last_slot = pod_rects[visible - 1];
-            let hint = Line::from(Span::styled(
-                format!("  +{} more anomalies", anomalies.len() - 3),
-                Style::default().fg(TEXT_DIM.to_color()),
-            ));
-            Paragraph::new(hint).render(
-                Rect::new(
-                    last_slot.x,
-                    last_slot.y + last_slot.height.saturating_sub(1),
-                    last_slot.width,
-                    1,
-                ),
-                buf,
-            );
-        }
-    }
+    render_sidebar(rects.sidebar, buf, &entries, summary, &md.unit);
 
     render_events(&data.events, rects.events, buf);
     widgets::footer::Footer { state: st }.render(rects.footer, buf);
+}
+
+/// Render the per-pod sidebar.
+///
+/// Layout adapts to entry count:
+/// - 1 entry: full-height card
+/// - 2–3 entries: evenly stacked, each ~⅓ height
+/// - 4+ entries (already filtered to outliers): cards on top, then a summary
+///   row at the bottom counting the calm peers.
+fn render_sidebar(
+    area: Rect,
+    buf: &mut Buffer,
+    entries: &[SidebarEntry],
+    summary: SidebarSummary,
+    unit: &str,
+) {
+    if entries.is_empty() {
+        // Nothing to surface — say so prominently rather than leave a void.
+        let total = match summary {
+            SidebarSummary::All { total }
+            | SidebarSummary::MediumCluster { total, .. }
+            | SidebarSummary::LargeCluster { total, .. } => total,
+        };
+        let body = vec![
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("  "),
+                Span::styled("◉ ", Style::default().fg(ACCENT_OK.to_color())),
+                Span::styled(
+                    "All pods within tolerance",
+                    Style::default()
+                        .fg(TEXT_PRIMARY.to_color())
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ]),
+            Line::from(vec![Span::styled(
+                format!(
+                    "    {} pods, max−avg drift < {}σ",
+                    total, OUTLIER_SIGMA
+                ),
+                Style::default().fg(TEXT_SECONDARY.to_color()),
+            )]),
+            Line::from(""),
+            Line::from(vec![Span::styled(
+                "    Press ← / → to view another metric",
+                Style::default().fg(TEXT_DIM.to_color()),
+            )]),
+        ];
+        Paragraph::new(body).render(area, buf);
+        return;
+    }
+
+    // ── decide how many cards fit, plus whether to reserve a summary footer ──
+    let needs_summary = matches!(
+        summary,
+        SidebarSummary::MediumCluster { calm, .. } | SidebarSummary::LargeCluster { calm, .. }
+            if calm > 0
+    );
+    let summary_h: u16 = if needs_summary { 2 } else { 0 };
+    let card_area_h = area.height.saturating_sub(summary_h);
+    // Each card wants ≥ 6 rows; cap visible cards based on space.
+    let max_cards_by_space = (card_area_h / 6).max(1) as usize;
+    let max_cards_by_policy = match summary {
+        SidebarSummary::All { .. } => entries.len(),
+        SidebarSummary::MediumCluster { .. } => 4,
+        SidebarSummary::LargeCluster { .. } => 3,
+    };
+    let visible = entries.len().min(max_cards_by_space).min(max_cards_by_policy).max(1);
+
+    let card_area = Rect::new(area.x, area.y, area.width, card_area_h);
+    let card_rects = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Ratio(1, visible as u32); visible])
+        .split(card_area);
+    for (slot, entry) in entries.iter().take(visible).enumerate() {
+        if slot >= card_rects.len() {
+            break;
+        }
+        widgets::pod_card::PodCard {
+            pod: entry.pod,
+            series: entry.series,
+            unit,
+            reason: entry.reason,
+        }
+        .render(card_rects[slot], buf);
+    }
+
+    // ── summary footer ──
+    if needs_summary {
+        let footer_y = area.y + card_area_h;
+        let footer_rect = Rect::new(area.x, footer_y, area.width, summary_h);
+        let (calm, total) = match summary {
+            SidebarSummary::MediumCluster { calm, total }
+            | SidebarSummary::LargeCluster { calm, total } => (calm, total),
+            _ => (0, 0),
+        };
+        let hidden = entries.len().saturating_sub(visible);
+        let line1 = if hidden > 0 {
+            Line::from(vec![
+                Span::styled("  ", Style::default()),
+                Span::styled(
+                    format!("+{} more outliers", hidden),
+                    Style::default()
+                        .fg(ACCENT_WARN.to_color())
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+        } else {
+            Line::from(vec![
+                Span::styled("  ", Style::default()),
+                Span::styled("◉ ", Style::default().fg(ACCENT_OK.to_color())),
+                Span::styled(
+                    format!("{} pods within tolerance", calm),
+                    Style::default().fg(TEXT_PRIMARY.to_color()),
+                ),
+            ])
+        };
+        let line2 = Line::from(vec![Span::styled(
+            format!("    {} total · {} flagged", total, entries.len()),
+            Style::default().fg(TEXT_DIM.to_color()),
+        )]);
+        Paragraph::new(vec![line1, line2]).render(footer_rect, buf);
+    }
 }

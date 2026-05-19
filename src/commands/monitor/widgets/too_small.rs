@@ -65,6 +65,17 @@ impl Widget for TooSmall {
             "options: resize · single metric · --json".into(),
             dim,
         );
+        y += 2;
+        render_centered(
+            buf,
+            inner,
+            y,
+            format!(
+                "docs: {}",
+                crate::commands::monitor::widgets::help::DOCS_URL
+            ),
+            dim,
+        );
         let _ = line;
     }
 }
