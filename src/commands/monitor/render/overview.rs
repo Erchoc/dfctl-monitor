@@ -82,11 +82,15 @@ pub fn draw_overview(area: Rect, buf: &mut Buffer, st: &AppState, tier: LayoutTi
     // X-axis time scale under the panels — makes it obvious which window the
     // user is looking at and confirms range picker changed the query.
     if let Some(axis) = rects.time_axis {
-        widgets::time_axis::TimeAxis {
-            from: data.time_range.from,
-            to: data.time_range.to,
-            align_x_offset: 6, // skip Y-axis gutter inside each panel
-        }
+        // Desktop tier panels: border (1) + Y-axis label_w (~6). The axis
+        // spans only the left panel; the right panel has its own Y axis but
+        // sharing one time scale is fine since both columns plot the same
+        // window.
+        widgets::time_axis::TimeAxis::new(
+            data.time_range.from,
+            data.time_range.to,
+            7,
+        )
         .render(axis, buf);
     }
 

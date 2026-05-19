@@ -6,13 +6,32 @@ use ratatui::style::Style;
 use ratatui::text::Span;
 use ratatui::widgets::Widget;
 
-/// Horizontal time scale (7 evenly-spaced labels) under the overview panels.
-/// Confirms that `t` (range picker) actually changed the window — without
-/// this, the user had no on-screen evidence that the query updated.
+/// Horizontal time scale under the overview panels. Confirms that `t`
+/// (range picker) actually changed the window — without this, the user had
+/// no on-screen evidence that the query updated.
 pub struct TimeAxis {
     pub from: DateTime<Utc>,
     pub to: DateTime<Utc>,
-    pub align_x_offset: u16, // skip the gutter where Y-axis labels live
+    /// Skip this many columns on the left for the Y-axis gutter + panel border
+    /// so the first time label lines up with the chart's first pixel column,
+    /// not the screen edge.
+    pub align_x_offset: u16,
+    /// Same on the right — number of columns to reserve for the panel border
+    /// (and any right padding). Defaults to 1 if you use the builder.
+    pub align_x_end_pad: u16,
+}
+
+impl TimeAxis {
+    /// Convenience constructor that sets sensible right padding (1 col for
+    /// the panel border).
+    pub fn new(from: DateTime<Utc>, to: DateTime<Utc>, align_x_offset: u16) -> Self {
+        Self {
+            from,
+            to,
+            align_x_offset,
+            align_x_end_pad: 1,
+        }
+    }
 }
 
 impl Widget for TimeAxis {
@@ -21,8 +40,22 @@ impl Widget for TimeAxis {
             return;
         }
         let axis_x = area.x + self.align_x_offset;
-        let axis_w = area.width.saturating_sub(self.align_x_offset);
-        let n = 7_usize;
+        let axis_w = area
+            .width
+            .saturating_sub(self.align_x_offset)
+            .saturating_sub(self.align_x_end_pad);
+
+        // Pick label count that fits without crowding. Each label is 5 chars
+        // (HH:MM) and reads best with ~15 cols of breathing room between
+        // ticks. Otherwise the eye can't tell which tick lines up with which
+        // chart spike (user feedback: "底部时间刻度在小屏不需要那么多").
+        let n: usize = if axis_w < 45 {
+            3
+        } else if axis_w < 130 {
+            5
+        } else {
+            7
+        };
         let span_secs = (self.to - self.from).num_seconds().max(60) as f64;
         let use_full_date = span_secs >= 86_400.0;
 
