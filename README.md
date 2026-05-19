@@ -17,7 +17,7 @@ It also speaks JSON so an AI agent can read what you're looking at.
 - **Responsive layouts** — 2×4 grid on desktop, single‑column on narrow windows, **dedicated phone tier** (single panel per page, dot indicator, ↑↓ to flip) for SSH from your phone.
 - **`watch` mode** — auto‑refresh with a live countdown in the header, pause/resume with space.
 - **Aggregation switching** — `a` cycles each panel through max / avg / sum / p95 / per‑pod. Title reflects the mode.
-- **Range picker** — `R` opens an overlay to flip between 15m / 1h / 3h / 6h / 12h / 24h.
+- **Range picker** — `t` opens an overlay to flip between 15m / 1h / 3h / 6h / 12h / 24h.
 - **JSON output** — `dfctl monitor <app> --json` writes structured data with `stats` (min/max/avg/p50/p95/p99) for upstream agents and scripts.
 - **Truecolor palette** — proper accent / warn / alert colors, status‑colored panel borders, dimmed subtitles.
 
@@ -27,7 +27,7 @@ It also speaks JSON so an AI agent can read what you're looking at.
 |---|---|
 | **Default overview** (2×4, 180×48) | **Single‑metric detail** (`dfctl monitor app --metric=cpu`) |
 | ![overview](docs/screenshots/overview.png) | ![single](docs/screenshots/single.png) |
-| **Range picker overlay** (`R`) | **Phone — single panel paging** (80×24) |
+| **Range picker overlay** (`t`) | **Phone — single panel paging** (80×24) |
 | ![range](docs/screenshots/range.png) | ![phone](docs/screenshots/phone.png) |
 | **Phone — single‑metric** (80×40) | |
 | ![phone single](docs/screenshots/phone_single.png) | |
@@ -66,9 +66,9 @@ dfctl monitor my-service --pod=pod-a,pod-b   # filter to specific pods
 | `Tab` / `Shift-Tab` | Cycle focus |
 | `Enter` | Open detail view |
 | `Esc` | Back to overview |
-| `[` `]` | Previous / next metric (detail view) |
+| `← →` / `h l` | Previous / next metric (detail view) |
 | `a` | Cycle aggregation (max → avg → sum → p95 → per‑pod) |
-| `R` | Range picker overlay |
+| `t` | Time-range picker overlay |
 | `u` | Toggle traffic unit (RPM / QPS / auto) |
 | `w` | Toggle watch mode |
 | `space` | Pause / resume watch |

@@ -118,12 +118,15 @@ pub fn assess_health(metric: MetricKind, series: &[Series]) -> HealthStatus {
             HealthStatus::Ok
         }
         MetricKind::Latency => {
-            if let Some(p99) = series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(99))) {
-                let stats = p99.stats();
-                if stats.max > 250.0 {
+            // Fallback thresholds when API doesn't supply any. Watch P95 (not
+            // P99) for the same reason CURRENT and preview do — P99 is the
+            // tail and over-triggers ALERT on bursty workloads.
+            if let Some(p95) = series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(95))) {
+                let v = p95.current();
+                if v > 200.0 {
                     return HealthStatus::Alert;
                 }
-                if stats.max > 150.0 {
+                if v > 120.0 {
                     return HealthStatus::Warn;
                 }
             }

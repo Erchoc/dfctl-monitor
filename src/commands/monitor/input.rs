@@ -3,6 +3,35 @@ use super::layout::LayoutTier;
 use super::state::{AppState, TrafficUnit, View, RANGE_OPTIONS};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+/// Find the next visible metric in the requested direction, skipping
+/// optional panels that the API returned no series for. Returns None
+/// if no neighbour exists (shouldn't happen — required metrics always render).
+fn neighbour_metric(st: &AppState, current: MetricKind, direction: i32) -> Option<MetricKind> {
+    let order = MetricKind::all_default();
+    let len = order.len();
+    let start = order.iter().position(|x| *x == current).unwrap_or(0);
+    let mut idx = start;
+    for _ in 0..len {
+        idx = (idx as i32 + direction).rem_euclid(len as i32) as usize;
+        let candidate = order[idx];
+        // If this is a required metric, take it. For optional metrics, check
+        // that the API actually returned data (non-empty series).
+        let has_data = if candidate.is_optional() {
+            st.data
+                .as_ref()
+                .and_then(|d| d.metrics.get(&candidate))
+                .map(|md| !md.series.is_empty())
+                .unwrap_or(false)
+        } else {
+            true
+        };
+        if has_data && candidate != current {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Action {
     None,
@@ -137,20 +166,26 @@ pub fn handle_key(key: KeyEvent, st: &mut AppState, tier: LayoutTier) -> Action 
                 st.view = View::Overview;
             }
             // ← / h : previous metric in detail view; [ kept as legacy alias.
+            // Skips optional panels (Upstream, Runtime) that the API didn't
+            // provide data for — bouncing into an empty page would be janky.
             KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('[') => {
-                let order = MetricKind::all_default();
-                let idx = order.iter().position(|x| *x == m).unwrap_or(0);
-                let next = (idx + order.len() - 1) % order.len();
-                st.view = View::SingleMetric(order[next]);
-                st.focused_panel = next;
+                if let Some(next) = neighbour_metric(st, m, -1) {
+                    st.focused_panel = MetricKind::all_default()
+                        .iter()
+                        .position(|x| *x == next)
+                        .unwrap_or(0);
+                    st.view = View::SingleMetric(next);
+                }
             }
             // → / l : next metric in detail view; ] kept as legacy alias.
             KeyCode::Right | KeyCode::Char('l') | KeyCode::Char(']') => {
-                let order = MetricKind::all_default();
-                let idx = order.iter().position(|x| *x == m).unwrap_or(0);
-                let next = (idx + 1) % order.len();
-                st.view = View::SingleMetric(order[next]);
-                st.focused_panel = next;
+                if let Some(next) = neighbour_metric(st, m, 1) {
+                    st.focused_panel = MetricKind::all_default()
+                        .iter()
+                        .position(|x| *x == next)
+                        .unwrap_or(0);
+                    st.view = View::SingleMetric(next);
+                }
             }
             _ => {}
         },

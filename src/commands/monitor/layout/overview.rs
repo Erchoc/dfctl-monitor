@@ -87,7 +87,7 @@ pub fn compute_single_column(area: Rect) -> OverviewRects {
 
     // Weights: golden signals × 2, the rest × 1.
     // Order matches MetricKind::all_default(): Qps, Latency, ErrorRate,
-    // Upstream, Cpu, Memory, Replicas, Runtime.
+    // Cpu, Memory, Replicas, Upstream, Runtime.
     let weights = [2u16, 2, 2, 1, 1, 1, 1, 1];
     let constraints: Vec<Constraint> = weights.iter().map(|w| Constraint::Ratio(*w as u32, 11)).collect();
     let rows = Layout::default()

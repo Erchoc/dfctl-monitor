@@ -106,8 +106,12 @@ pub fn kpi_format(v: f64, unit: &str) -> String {
 }
 
 pub fn derive_current(md: &MetricData) -> (f64, String) {
-    // For percentile metrics (latency) the "current" the user wants is P99 — that's
-    // the headline number on every dashboard. Fall through to max/first otherwise.
+    // For percentile metrics (latency) the "current" headline is P95 — P99 is
+    // alarmist and dominated by tail outliers; P95 reflects the typical slow
+    // user. Falls through to P99 / max / first if no P95 is available.
+    if let Some(p95) = md.series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(95))) {
+        return (p95.current(), "P95 · now".into());
+    }
     if let Some(p99) = md.series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(99))) {
         return (p99.current(), "P99 · now".into());
     }

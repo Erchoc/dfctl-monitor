@@ -165,13 +165,15 @@ fn build_preview(metric: MetricKind, data: &MetricData) -> String {
             format_traffic(total_2xx)
         }
         MetricKind::Latency => {
-            let p99 = data
+            // Headline is P95 (typical slow user). P99 still surfaces in the
+            // subtitle row right below — preview should not over-trigger alarm.
+            let p95 = data
                 .series
                 .iter()
-                .find(|s| matches!(s.kind, SeriesKind::Percentile(99)))
+                .find(|s| matches!(s.kind, SeriesKind::Percentile(95)))
                 .map(|s| s.current())
                 .unwrap_or(0.0);
-            format!("P99 {:.0}ms", p99)
+            format!("P95 {:.0}ms", p95)
         }
         MetricKind::ErrorRate => {
             data.series
