@@ -8,11 +8,18 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 
+/// Reset the buffer area: clear character, set BG. Without this, terminals
+/// that don't aggressively diff-track per-cell (notably Termius on iOS) keep
+/// Braille blobs from the previous frame visible — e.g. when the phone-tier
+/// pager flips between panels, the new panel's blank regions show the old
+/// panel's sparkline / chart pixels. Clearing the char fixes the artifact.
 pub fn paint_bg(buf: &mut Buffer, area: Rect) {
     for y in area.y..area.y + area.height {
         for x in area.x..area.x + area.width {
             if let Some(c) = buf.cell_mut((x, y)) {
+                c.set_char(' ');
                 c.set_bg(BG.to_color());
+                c.set_fg(BG.to_color());
             }
         }
     }
