@@ -118,15 +118,26 @@ pub fn kpi_format(v: f64, unit: &str) -> String {
 }
 
 pub fn derive_current(md: &MetricData) -> (f64, String) {
-    // For percentile metrics (latency) the "current" headline is P95 — P99 is
-    // alarmist and dominated by tail outliers; P95 reflects the typical slow
-    // user. Falls through to P99 / max / first if no P95 is available.
+    // Status-coded metrics (QPS by status) → headline is the SUM of all
+    // status series (total traffic), not just 2xx. "series · 2xx" was
+    // misleading — users want to see overall RPS first.
+    if md.series.iter().any(|s| matches!(s.kind, SeriesKind::StatusCode(_))) {
+        let total: f64 = md
+            .series
+            .iter()
+            .filter(|s| matches!(s.kind, SeriesKind::StatusCode(_)))
+            .map(|s| s.current())
+            .sum();
+        return (total, "total · all status".into());
+    }
+    // Latency: P95 headline (less alarmist than P99).
     if let Some(p95) = md.series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(95))) {
         return (p95.current(), "P95 · now".into());
     }
     if let Some(p99) = md.series.iter().find(|s| matches!(s.kind, SeriesKind::Percentile(99))) {
         return (p99.current(), "P99 · now".into());
     }
+    // CPU/Memory: "max" aggregate + which pod hits it.
     if let Some(max_s) = md.series.iter().find(|s| s.label == "max") {
         let v = max_s.current();
         let owner = md
@@ -145,7 +156,26 @@ pub fn derive_current(md: &MetricData) -> (f64, String) {
 }
 
 pub fn derive_avg(md: &MetricData, metric: MetricKind) -> (f64, String) {
-    // Pick the right series to average:
+    // Status-coded metrics (QPS): average of total traffic over the window —
+    // sum across status codes for each timestamp, then average those totals.
+    if matches!(metric, MetricKind::Qps)
+        && md.series.iter().any(|s| matches!(s.kind, SeriesKind::StatusCode(_)))
+    {
+        let status_series: Vec<&Series> = md
+            .series
+            .iter()
+            .filter(|s| matches!(s.kind, SeriesKind::StatusCode(_)))
+            .collect();
+        let n_points = status_series.first().map(|s| s.points.len()).unwrap_or(0);
+        if n_points > 0 {
+            let mean: f64 = (0..n_points)
+                .map(|i| status_series.iter().map(|s| s.points[i].1).sum::<f64>())
+                .sum::<f64>()
+                / n_points as f64;
+            return (mean, "total · time-window mean".into());
+        }
+    }
+    // Pick the right series to average for other metrics:
     //  - Latency → P95 (matches CURRENT card / panel headline)
     //  - Anything with an "avg" series → use that aggregate
     //  - Otherwise → first non-pod series
